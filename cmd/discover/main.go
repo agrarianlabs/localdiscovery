@@ -35,7 +35,7 @@ func main() {
 
 	logrus.Printf("ready on %s", listenAddr)
 
-	discovery, err := localdiscovery.NewDiscovery(dockerURL)
+	discovery, err := localdiscovery.NewDockerDiscovery(dockerURL)
 	if err != nil {
 		logrus.Fatal(err)
 	}

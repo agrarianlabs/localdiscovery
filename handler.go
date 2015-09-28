@@ -7,7 +7,7 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-// LookupRequest .
+// LookupRequest is the data send via POST for the Lookup Handler.
 type LookupRequest struct {
 	HostInfo
 	Port string
@@ -23,7 +23,7 @@ type LookupRequest struct {
 //   - port     (string): port as a string. ex: 80, 8080/tcp, 8125/udp
 // Response:
 //   - port        (int): first exposed port public value. 0 means not exposed.
-func (d *Discovery) LookupHandler(w http.ResponseWriter, req *http.Request) error {
+func (d *DockerDiscovery) LookupHandler(w http.ResponseWriter, req *http.Request) error {
 	lookupReq := LookupRequest{}
 	err := json.NewDecoder(req.Body).Decode(&lookupReq)
 	_ = req.Body.Close() // best effort.

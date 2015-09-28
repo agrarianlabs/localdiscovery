@@ -1,7 +1,11 @@
 package localdiscovery
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -9,25 +13,27 @@ import (
 	docker "github.com/fsouza/go-dockerclient"
 )
 
-// Discovery holds the state.
-type Discovery struct {
+// DockerDiscovery creates a http service
+// to lookup the exposed port of a given container.
+type DockerDiscovery struct {
 	client *docker.Client
 }
 
-// NewDiscovery instantiates a new Discovery object.
-func NewDiscovery(dockerAddr string) (*Discovery, error) {
+// NewDockerDiscovery instantiates a new DockerDiscovery object.
+// Connects to docker and store the socket.
+func NewDockerDiscovery(dockerAddr string) (*DockerDiscovery, error) {
 	client, err := docker.NewClient(dockerAddr)
 	if err != nil {
 		return nil, err
 	}
-	return &Discovery{
+	return &DockerDiscovery{
 		client: client,
 	}, nil
 }
 
 // LookupPort lookup the given port for a container and return the first port value.
 // First tries to lookup the container with hostname as ID, then lookup the hostname.
-func (d *Discovery) LookupPort(hostname, ip, mac, port string) (int, error) {
+func (d *DockerDiscovery) LookupPort(hostname, ip, mac, port string) (int, error) {
 	// default to TCP if not specified.
 	if strings.Index(port, "/") == -1 {
 		port += "/tcp"
@@ -79,4 +85,41 @@ func (d *Discovery) LookupPort(hostname, ip, mac, port string) (int, error) {
 	}
 	// If we reach this point, we didn't find the container.
 	return -1, fmt.Errorf("unable to lookup the port %s for container %s (%s)", port, hostname, ip)
+}
+
+// SelfDockerLookup looks up the publicly exposed port for the current host.
+// First lookup the local host infos, then sends the port lookup request.
+// - url is tha address of the discover service.
+// - iface is the network interface to lookup.
+// - port is a string and can contain /udp or /tcp suffix.
+func SelfDockerLookup(url, iface, port string) (int, error) {
+	hostInfo, err := LookupHostInfo(iface)
+	if err != nil {
+		return -1, err
+	}
+	buf, err := json.Marshal(LookupRequest{HostInfo: hostInfo, Port: port})
+	if err != nil {
+		return -1, err
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewReader(buf))
+	if err != nil {
+		return -1, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return -1, err
+	}
+	buf, err = ioutil.ReadAll(resp.Body)
+	_ = resp.Body.Close() // best effort.
+	if err != nil {
+		return -1, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return -1, fmt.Errorf("unexpected response: %d (%s)", resp.StatusCode, buf)
+	}
+	var exposedPort int
+	if err := json.Unmarshal(buf, &exposedPort); err != nil {
+		return -1, err
+	}
+	return exposedPort, nil
 }
