@@ -7,7 +7,7 @@ RUN        go install -a std
 
 MAINTAINER Guillaume J. Charmes <gcharmes@leaf.ag>
 
-ENV        APP_DIR    $GOPATH/src/github.com/agrarianlabs/router/discover
+ENV        APP_DIR    $GOPATH/src/github.com/agrarianlabs/localdiscovery
 
 WORKDIR    $APP_DIR
 
