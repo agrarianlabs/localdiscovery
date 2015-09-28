@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/agrarianlabs/router/discover",
+	"ImportPath": "github.com/agrarianlabs/localdiscovery",
 	"GoVersion": "go1.5.1",
 	"Packages": [
 		"./..."
@@ -17,6 +17,11 @@
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
 			"Rev": "af9789bbd78acf3e279274caa54682185eb7ed33"
+		},
+		{
+			"ImportPath": "github.com/go-fsnotify/fsnotify",
+			"Comment": "v1.2.0-1-g6549b98",
+			"Rev": "6549b98005f3e4026ad9f50ef7d5011f40ba1397"
 		}
 	]
 }
