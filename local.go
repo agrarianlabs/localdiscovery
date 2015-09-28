@@ -1,4 +1,4 @@
-package discover
+package localdiscovery
 
 import (
 	"bytes"
