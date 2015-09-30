@@ -81,7 +81,7 @@ func LookupLocalServiceIP(service, pth string) (string, error) {
 	}
 	ipStr := strings.TrimSpace(string(buf))
 	// validate the ip
-	if _, _, err := net.ParseCIDR(ipStr + "/32"); err != nil {
+	if _, _, err := net.ParseCIDR(strings.Split(ipStr, ":")[0] + "/32"); err != nil {
 		return "", fmt.Errorf("invalid service ip (%s): %s", ipStr, err)
 	}
 	return ipStr, nil
