@@ -75,7 +75,7 @@ func LookupLocalServiceIP(service, pth string) (string, error) {
 	buf, err := ioutil.ReadFile(path.Join(pth, service))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("discovery file not present")
+			return "", fmt.Errorf("discovery file not present for %s", service)
 		}
 		return "", err
 	}
