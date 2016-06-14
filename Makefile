@@ -1,7 +1,7 @@
 NAME            = discover
 DOCKER_IP      ?= docker.local
 SRCS            = $(shell find . -name '*.go')
-RELEASE_I       = tutum.co/agrarianlabs/$(NAME)
+RELEASE_I       = leafcloud/$(NAME)
 
 all             : build
 
