@@ -1,7 +1,7 @@
-FROM       golang:1.5
-RUN        go get github.com/tools/godep
-RUN        go get github.com/golang/lint/golint
-RUN        go get golang.org/x/tools/cmd/goimports
+FROM       golang:1.7
+
+RUN        go get github.com/golang/lint/golint golang.org/x/tools/cmd/goimports && curl https://glide.sh/get | sh
+
 ENV        CGO_ENABLED 0
 RUN        go install -a std
 
@@ -12,6 +12,6 @@ ENV        APP_DIR    $GOPATH/src/github.com/agrarianlabs/localdiscovery
 WORKDIR    $APP_DIR
 
 ADD        . $APP_DIR
-RUN        godep go build -ldflags -d ./cmd/discover
+RUN        go build -ldflags -d ./cmd/discover
 
 CMD        ["./discover"]
