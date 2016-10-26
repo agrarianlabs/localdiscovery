@@ -1,10 +1,8 @@
 package runconfig
 
-import "github.com/docker/engine-api/types/container"
-
 // Compare two Config struct. Do not compare the "Image" nor "Hostname" fields
 // If OpenStdin is set, then it differs
-func Compare(a, b *container.Config) bool {
+func Compare(a, b *Config) bool {
 	if a == nil || b == nil ||
 		a.OpenStdin || b.OpenStdin {
 		return false
@@ -17,17 +15,19 @@ func Compare(a, b *container.Config) bool {
 		return false
 	}
 
-	if len(a.Cmd) != len(b.Cmd) ||
+	if a.Cmd.Len() != b.Cmd.Len() ||
 		len(a.Env) != len(b.Env) ||
 		len(a.Labels) != len(b.Labels) ||
 		len(a.ExposedPorts) != len(b.ExposedPorts) ||
-		len(a.Entrypoint) != len(b.Entrypoint) ||
+		a.Entrypoint.Len() != b.Entrypoint.Len() ||
 		len(a.Volumes) != len(b.Volumes) {
 		return false
 	}
 
-	for i := 0; i < len(a.Cmd); i++ {
-		if a.Cmd[i] != b.Cmd[i] {
+	aCmd := a.Cmd.Slice()
+	bCmd := b.Cmd.Slice()
+	for i := 0; i < len(aCmd); i++ {
+		if aCmd[i] != bCmd[i] {
 			return false
 		}
 	}
@@ -47,8 +47,10 @@ func Compare(a, b *container.Config) bool {
 		}
 	}
 
-	for i := 0; i < len(a.Entrypoint); i++ {
-		if a.Entrypoint[i] != b.Entrypoint[i] {
+	aEntrypoint := a.Entrypoint.Slice()
+	bEntrypoint := b.Entrypoint.Slice()
+	for i := 0; i < len(aEntrypoint); i++ {
+		if aEntrypoint[i] != bEntrypoint[i] {
 			return false
 		}
 	}

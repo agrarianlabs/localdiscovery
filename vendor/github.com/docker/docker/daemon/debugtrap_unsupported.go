@@ -1,7 +1,7 @@
-// +build !linux,!darwin,!freebsd,!windows,!solaris
+// +build !linux,!darwin,!freebsd,!windows
 
 package daemon
 
-func setupDumpStackTrap(_ string) {
+func setupDumpStackTrap() {
 	return
 }

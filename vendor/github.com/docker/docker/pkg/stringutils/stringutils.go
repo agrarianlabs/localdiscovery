@@ -1,4 +1,3 @@
-// Package stringutils provides helper functions for dealing with strings.
 package stringutils
 
 import (
@@ -9,19 +8,20 @@ import (
 	"github.com/docker/docker/pkg/random"
 )
 
-// GenerateRandomAlphaOnlyString generates an alphabetical random string with length n.
+// Generate alpha only random stirng with length n
 func GenerateRandomAlphaOnlyString(n int) string {
 	// make a really long string
 	letters := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	b := make([]byte, n)
+	r := rand.New(random.NewSource())
 	for i := range b {
-		b[i] = letters[random.Rand.Intn(len(letters))]
+		b[i] = letters[r.Intn(len(letters))]
 	}
 	return string(b)
 }
 
-// GenerateRandomASCIIString generates an ASCII random string with length n.
-func GenerateRandomASCIIString(n int) string {
+// Generate Ascii random stirng with length n
+func GenerateRandomAsciiString(n int) string {
 	chars := "abcdefghijklmnopqrstuvwxyz" +
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"~!@#$%^&*()-_+={}[]\\|<,>.?/\"';:` "
@@ -32,7 +32,7 @@ func GenerateRandomASCIIString(n int) string {
 	return string(res)
 }
 
-// Truncate truncates a string to maxlen.
+// Truncate a string to maxlen
 func Truncate(s string, maxlen int) string {
 	if len(s) <= maxlen {
 		return s
@@ -40,7 +40,7 @@ func Truncate(s string, maxlen int) string {
 	return s[:maxlen]
 }
 
-// InSlice tests whether a string is contained in a slice of strings or not.
+// Test wheather a string is contained in a slice of strings or not.
 // Comparison is case insensitive
 func InSlice(slice []string, s string) bool {
 	for _, ss := range slice {
@@ -73,8 +73,8 @@ func quote(word string, buf *bytes.Buffer) {
 	buf.WriteString("'")
 }
 
-// ShellQuoteArguments takes a list of strings and escapes them so they will be
-// handled right when passed as arguments to a program via a shell
+// Take a list of strings and escape them so they will be handled right
+// when passed as arguments to an program via a shell
 func ShellQuoteArguments(args []string) string {
 	var buf bytes.Buffer
 	for i, arg := range args {

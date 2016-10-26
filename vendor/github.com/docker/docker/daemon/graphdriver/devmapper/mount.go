@@ -13,7 +13,6 @@ import (
 // FIXME: this is copy-pasted from the aufs driver.
 // It should be moved into the core.
 
-// Mounted returns true if a mount point exists.
 func Mounted(mountpoint string) (bool, error) {
 	mntpoint, err := os.Stat(mountpoint)
 	if err != nil {
@@ -37,7 +36,6 @@ type probeData struct {
 	offset uint64
 }
 
-// ProbeFsType returns the filesystem name for the given device id.
 func ProbeFsType(device string) (string, error) {
 	probes := []probeData{
 		{"btrfs", "_BHRfS_M", 0x10040},
@@ -66,7 +64,7 @@ func ProbeFsType(device string) (string, error) {
 	}
 
 	if uint64(l) != maxLen {
-		return "", fmt.Errorf("devmapper: unable to detect filesystem type of %s, short read", device)
+		return "", fmt.Errorf("unable to detect filesystem type of %s, short read", device)
 	}
 
 	for _, p := range probes {
@@ -75,7 +73,7 @@ func ProbeFsType(device string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("devmapper: Unknown filesystem type on %s", device)
+	return "", fmt.Errorf("Unknown filesystem type on %s", device)
 }
 
 func joinMountOptions(a, b string) string {

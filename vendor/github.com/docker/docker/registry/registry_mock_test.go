@@ -15,8 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/reference"
-	registrytypes "github.com/docker/engine-api/types/registry"
+	"github.com/docker/docker/opts"
 	"github.com/gorilla/mux"
 
 	"github.com/Sirupsen/logrus"
@@ -146,40 +145,50 @@ func makeURL(req string) string {
 	return testHTTPServer.URL + req
 }
 
-func makeHTTPSURL(req string) string {
+func makeHttpsURL(req string) string {
 	return testHTTPSServer.URL + req
 }
 
-func makeIndex(req string) *registrytypes.IndexInfo {
-	index := &registrytypes.IndexInfo{
+func makeIndex(req string) *IndexInfo {
+	index := &IndexInfo{
 		Name: makeURL(req),
 	}
 	return index
 }
 
-func makeHTTPSIndex(req string) *registrytypes.IndexInfo {
-	index := &registrytypes.IndexInfo{
-		Name: makeHTTPSURL(req),
+func makeHttpsIndex(req string) *IndexInfo {
+	index := &IndexInfo{
+		Name: makeHttpsURL(req),
 	}
 	return index
 }
 
-func makePublicIndex() *registrytypes.IndexInfo {
-	index := &registrytypes.IndexInfo{
-		Name:     IndexServer,
+func makePublicIndex() *IndexInfo {
+	index := &IndexInfo{
+		Name:     INDEXSERVER,
 		Secure:   true,
 		Official: true,
 	}
 	return index
 }
 
-func makeServiceConfig(mirrors []string, insecureRegistries []string) *serviceConfig {
-	options := ServiceOptions{
-		Mirrors:            mirrors,
-		InsecureRegistries: insecureRegistries,
+func makeServiceConfig(mirrors []string, insecureRegistries []string) *ServiceConfig {
+	options := &Options{
+		Mirrors:            opts.NewListOpts(nil),
+		InsecureRegistries: opts.NewListOpts(nil),
+	}
+	if mirrors != nil {
+		for _, mirror := range mirrors {
+			options.Mirrors.Set(mirror)
+		}
+	}
+	if insecureRegistries != nil {
+		for _, insecureRegistries := range insecureRegistries {
+			options.InsecureRegistries.Set(insecureRegistries)
+		}
 	}
 
-	return newServiceConfig(options)
+	return NewServiceConfig(options)
 }
 
 func writeHeaders(w http.ResponseWriter) {
@@ -340,18 +349,15 @@ func handlerGetDeleteTags(w http.ResponseWriter, r *http.Request) {
 	if !requiresAuth(w, r) {
 		return
 	}
-	repositoryName, err := reference.WithName(mux.Vars(r)["repository"])
-	if err != nil {
-		apiError(w, "Could not parse repository", 400)
-		return
-	}
-	tags, exists := testRepositories[repositoryName.String()]
+	repositoryName := mux.Vars(r)["repository"]
+	repositoryName = NormalizeLocalName(repositoryName)
+	tags, exists := testRepositories[repositoryName]
 	if !exists {
 		apiError(w, "Repository not found", 404)
 		return
 	}
 	if r.Method == "DELETE" {
-		delete(testRepositories, repositoryName.String())
+		delete(testRepositories, repositoryName)
 		writeResponse(w, true, 200)
 		return
 	}
@@ -363,13 +369,10 @@ func handlerGetTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	repositoryName, err := reference.WithName(vars["repository"])
-	if err != nil {
-		apiError(w, "Could not parse repository", 400)
-		return
-	}
+	repositoryName := vars["repository"]
+	repositoryName = NormalizeLocalName(repositoryName)
 	tagName := vars["tag"]
-	tags, exists := testRepositories[repositoryName.String()]
+	tags, exists := testRepositories[repositoryName]
 	if !exists {
 		apiError(w, "Repository not found", 404)
 		return
@@ -387,16 +390,13 @@ func handlerPutTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	repositoryName, err := reference.WithName(vars["repository"])
-	if err != nil {
-		apiError(w, "Could not parse repository", 400)
-		return
-	}
+	repositoryName := vars["repository"]
+	repositoryName = NormalizeLocalName(repositoryName)
 	tagName := vars["tag"]
-	tags, exists := testRepositories[repositoryName.String()]
+	tags, exists := testRepositories[repositoryName]
 	if !exists {
-		tags = make(map[string]string)
-		testRepositories[repositoryName.String()] = tags
+		tags := make(map[string]string)
+		testRepositories[repositoryName] = tags
 	}
 	tagValue := ""
 	readJSON(r, tagValue)
@@ -446,10 +446,10 @@ func handlerAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlerSearch(w http.ResponseWriter, r *http.Request) {
-	result := &registrytypes.SearchResults{
+	result := &SearchResults{
 		Query:      "fakequery",
 		NumResults: 1,
-		Results:    []registrytypes.SearchResult{{Name: "fakeimage", StarCount: 42}},
+		Results:    []SearchResult{{Name: "fakeimage", StarCount: 42}},
 	}
 	writeResponse(w, result, 200)
 }
@@ -468,7 +468,7 @@ func TestPing(t *testing.T) {
  * WARNING: Don't push on the repos uncommented, it'll block the tests
  *
 func TestWait(t *testing.T) {
-	logrus.Println("Test HTTP server ready and waiting:", testHTTPServer.URL)
+	logrus.Println("Test HTTP server ready and waiting:", testHttpServer.URL)
 	c := make(chan int)
 	<-c
 }

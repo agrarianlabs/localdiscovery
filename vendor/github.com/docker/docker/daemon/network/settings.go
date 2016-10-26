@@ -1,24 +1,31 @@
 package network
 
-import (
-	clustertypes "github.com/docker/docker/daemon/cluster/provider"
-	networktypes "github.com/docker/engine-api/types/network"
-	"github.com/docker/go-connections/nat"
-)
+import "github.com/docker/docker/pkg/nat"
+
+// Address represents an IP address
+type Address struct {
+	Addr      string
+	PrefixLen int
+}
 
 // Settings stores configuration details about the daemon network config
-// TODO Windows. Many of these fields can be factored out.,
 type Settings struct {
 	Bridge                 string
-	SandboxID              string
+	EndpointID             string
+	Gateway                string
+	GlobalIPv6Address      string
+	GlobalIPv6PrefixLen    int
 	HairpinMode            bool
+	IPAddress              string
+	IPPrefixLen            int
+	IPv6Gateway            string
 	LinkLocalIPv6Address   string
 	LinkLocalIPv6PrefixLen int
-	Networks               map[string]*networktypes.EndpointSettings
-	Service                *clustertypes.ServiceConfig
+	MacAddress             string
+	NetworkID              string
+	PortMapping            map[string]map[string]string // Deprecated
 	Ports                  nat.PortMap
 	SandboxKey             string
-	SecondaryIPAddresses   []networktypes.Address
-	SecondaryIPv6Addresses []networktypes.Address
-	IsAnonymousEndpoint    bool
+	SecondaryIPAddresses   []Address
+	SecondaryIPv6Addresses []Address
 }

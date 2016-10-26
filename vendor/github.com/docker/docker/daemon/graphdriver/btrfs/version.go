@@ -17,10 +17,10 @@ package btrfs
 */
 import "C"
 
-func btrfsBuildVersion() string {
+func BtrfsBuildVersion() string {
 	return string(C.BTRFS_BUILD_VERSION)
 }
 
-func btrfsLibVersion() int {
+func BtrfsLibVersion() int {
 	return int(C.BTRFS_LIB_VERSION)
 }

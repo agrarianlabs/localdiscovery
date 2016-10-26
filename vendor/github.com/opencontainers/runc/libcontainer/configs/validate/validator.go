@@ -126,6 +126,11 @@ func (v *ConfigValidator) sysctl(config *configs.Config) error {
 		}
 		if strings.HasPrefix(s, "net.") {
 			if config.Namespaces.Contains(configs.NEWNET) {
+				if path := config.Namespaces.PathOf(configs.NEWNET); path != "" {
+					if err := checkHostNs(s, path); err != nil {
+						return err
+					}
+				}
 				continue
 			} else {
 				return fmt.Errorf("sysctl %q is not allowed in the hosts network namespace", s)
@@ -134,5 +139,24 @@ func (v *ConfigValidator) sysctl(config *configs.Config) error {
 		return fmt.Errorf("sysctl %q is not in a separate kernel namespace", s)
 	}
 
+	return nil
+}
+
+// checkHostNs checks whether network sysctl is used in host namespace.
+func checkHostNs(sysctlConfig string, path string) error {
+	var currentProcessNetns = "/proc/self/ns/net"
+	// readlink on the current processes network namespace
+	destOfCurrentProcess, err := os.Readlink(currentProcessNetns)
+	if err != nil {
+		return fmt.Errorf("read soft link %q error", currentProcessNetns)
+	}
+	// readlink on the path provided in the struct
+	destOfContainer, err := os.Readlink(path)
+	if err != nil {
+		return fmt.Errorf("read soft link %q error", path)
+	}
+	if destOfContainer == destOfCurrentProcess {
+		return fmt.Errorf("sysctl %q is not allowed in the hosts network namespace", sysctlConfig)
+	}
 	return nil
 }

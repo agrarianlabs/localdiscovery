@@ -4,19 +4,18 @@ package overlay
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
-	"time"
 
-	"github.com/docker/docker/pkg/pools"
 	"github.com/docker/docker/pkg/system"
 )
 
-type copyFlags int
+type CopyFlags int
 
 const (
-	copyHardlink copyFlags = 1 << iota
+	CopyHardlink CopyFlags = 1 << iota
 )
 
 func copyRegular(srcPath, dstPath string, mode os.FileMode) error {
@@ -32,7 +31,7 @@ func copyRegular(srcPath, dstPath string, mode os.FileMode) error {
 	}
 	defer dstFile.Close()
 
-	_, err = pools.Copy(dstFile, srcFile)
+	_, err = io.Copy(dstFile, srcFile)
 
 	return err
 }
@@ -50,7 +49,7 @@ func copyXattr(srcPath, dstPath, attr string) error {
 	return nil
 }
 
-func copyDir(srcDir, dstDir string, flags copyFlags) error {
+func copyDir(srcDir, dstDir string, flags CopyFlags) error {
 	err := filepath.Walk(srcDir, func(srcPath string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -76,7 +75,7 @@ func copyDir(srcDir, dstDir string, flags copyFlags) error {
 
 		switch f.Mode() & os.ModeType {
 		case 0: // Regular file
-			if flags&copyHardlink != 0 {
+			if flags&CopyHardlink != 0 {
 				isHardlink = true
 				if err := os.Link(srcPath, dstPath); err != nil {
 					return err
@@ -150,15 +149,13 @@ func copyDir(srcDir, dstDir string, flags copyFlags) error {
 			}
 		}
 
-		// system.Chtimes doesn't support a NOFOLLOW flag atm
+		ts := []syscall.Timespec{stat.Atim, stat.Mtim}
+		// syscall.UtimesNano doesn't support a NOFOLLOW flag atm, and
 		if !isSymlink {
-			aTime := time.Unix(int64(stat.Atim.Sec), int64(stat.Atim.Nsec))
-			mTime := time.Unix(int64(stat.Mtim.Sec), int64(stat.Mtim.Nsec))
-			if err := system.Chtimes(dstPath, aTime, mTime); err != nil {
+			if err := system.UtimesNano(dstPath, ts); err != nil {
 				return err
 			}
 		} else {
-			ts := []syscall.Timespec{stat.Atim, stat.Mtim}
 			if err := system.LUtimesNano(dstPath, ts); err != nil {
 				return err
 			}

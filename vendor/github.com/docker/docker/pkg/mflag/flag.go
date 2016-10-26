@@ -1,83 +1,84 @@
-// Copyright 2014-2016 The Docker & Go Authors. All rights reserved.
+// Copyright 2014-2015 The Docker & Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//	Package mflag implements command-line flag parsing.
-//
-//	Usage:
-//
-//	Define flags using flag.String(), Bool(), Int(), etc.
-//
-//	This declares an integer flag, -f or --flagname, stored in the pointer ip, with type *int.
-//		import flag "github.com/docker/docker/pkg/mflag"
-//		var ip = flag.Int([]string{"f", "-flagname"}, 1234, "help message for flagname")
-//	If you like, you can bind the flag to a variable using the Var() functions.
-//		var flagvar int
-//		func init() {
-//			// -flaghidden will work, but will be hidden from the usage
-//			flag.IntVar(&flagvar, []string{"f", "#flaghidden", "-flagname"}, 1234, "help message for flagname")
-//		}
-//	Or you can create custom flags that satisfy the Value interface (with
-//	pointer receivers) and couple them to flag parsing by
-//		flag.Var(&flagVal, []string{"name"}, "help message for flagname")
-//	For such flags, the default value is just the initial value of the variable.
-//
-//	You can also add "deprecated" flags, they are still usable, but are not shown
-//	in the usage and will display a warning when you try to use them. `#` before
-//	an option means this option is deprecated, if there is a following option
-//	without `#` ahead, then that's the replacement, if not, it will just be removed:
-//		var ip = flag.Int([]string{"#f", "#flagname", "-flagname"}, 1234, "help message for flagname")
-//	this will display: `Warning: '-f' is deprecated, it will be replaced by '--flagname' soon. See usage.` or
-//	this will display: `Warning: '-flagname' is deprecated, it will be replaced by '--flagname' soon. See usage.`
-//		var ip = flag.Int([]string{"f", "#flagname"}, 1234, "help message for flagname")
-//	will display: `Warning: '-flagname' is deprecated, it will be removed soon. See usage.`
-//	so you can only use `-f`.
-//
-//	You can also group one letter flags, if you declare
-//		var v = flag.Bool([]string{"v", "-verbose"}, false, "help message for verbose")
-//		var s = flag.Bool([]string{"s", "-slow"}, false, "help message for slow")
-//	you will be able to use the -vs or -sv
-//
-//	After all flags are defined, call
-//		flag.Parse()
-//	to parse the command line into the defined flags.
-//
-//	Flags may then be used directly. If you're using the flags themselves,
-//	they are all pointers; if you bind to variables, they're values.
-//		fmt.Println("ip has value ", *ip)
-//		fmt.Println("flagvar has value ", flagvar)
-//
-//	After parsing, the arguments after the flag are available as the
-//	slice flag.Args() or individually as flag.Arg(i).
-//	The arguments are indexed from 0 through flag.NArg()-1.
-//
-//	Command line flag syntax:
-//		-flag
-//		-flag=x
-//		-flag="x"
-//		-flag='x'
-//		-flag x  // non-boolean flags only
-//	One or two minus signs may be used; they are equivalent.
-//	The last form is not permitted for boolean flags because the
-//	meaning of the command
-//		cmd -x *
-//	will change if there is a file called 0, false, etc.  You must
-//	use the -flag=false form to turn off a boolean flag.
-//
-//	Flag parsing stops just before the first non-flag argument
-//	("-" is a non-flag argument) or after the terminator "--".
-//
-//	Integer flags accept 1234, 0664, 0x1234 and may be negative.
-//	Boolean flags may be 1, 0, t, f, true, false, TRUE, FALSE, True, False.
-//	Duration flags accept any input valid for time.ParseDuration.
-//
-//	The default set of command-line flags is controlled by
-//	top-level functions.  The FlagSet type allows one to define
-//	independent sets of flags, such as to implement subcommands
-//	in a command-line interface. The methods of FlagSet are
-//	analogous to the top-level functions for the command-line
-//	flag set.
+/*
+	Package flag implements command-line flag parsing.
 
+	Usage:
+
+	Define flags using flag.String(), Bool(), Int(), etc.
+
+	This declares an integer flag, -f or --flagname, stored in the pointer ip, with type *int.
+		import "flag /github.com/docker/docker/pkg/mflag"
+		var ip = flag.Int([]string{"f", "-flagname"}, 1234, "help message for flagname")
+	If you like, you can bind the flag to a variable using the Var() functions.
+		var flagvar int
+		func init() {
+			// -flaghidden will work, but will be hidden from the usage
+			flag.IntVar(&flagvar, []string{"f", "#flaghidden", "-flagname"}, 1234, "help message for flagname")
+		}
+	Or you can create custom flags that satisfy the Value interface (with
+	pointer receivers) and couple them to flag parsing by
+		flag.Var(&flagVal, []string{"name"}, "help message for flagname")
+	For such flags, the default value is just the initial value of the variable.
+
+	You can also add "deprecated" flags, they are still usable, but are not shown
+	in the usage and will display a warning when you try to use them. `#` before
+	an option means this option is deprecated, if there is an following option
+	without `#` ahead, then that's the replacement, if not, it will just be removed:
+		var ip = flag.Int([]string{"#f", "#flagname", "-flagname"}, 1234, "help message for flagname")
+	this will display: `Warning: '-f' is deprecated, it will be replaced by '--flagname' soon. See usage.` or
+	this will display: `Warning: '-flagname' is deprecated, it will be replaced by '--flagname' soon. See usage.`
+		var ip = flag.Int([]string{"f", "#flagname"}, 1234, "help message for flagname")
+	will display: `Warning: '-flagname' is deprecated, it will be removed soon. See usage.`
+	so you can only use `-f`.
+
+	You can also group one letter flags, bif you declare
+		var v = flag.Bool([]string{"v", "-verbose"}, false, "help message for verbose")
+		var s = flag.Bool([]string{"s", "-slow"}, false, "help message for slow")
+	you will be able to use the -vs or -sv
+
+	After all flags are defined, call
+		flag.Parse()
+	to parse the command line into the defined flags.
+
+	Flags may then be used directly. If you're using the flags themselves,
+	they are all pointers; if you bind to variables, they're values.
+		fmt.Println("ip has value ", *ip)
+		fmt.Println("flagvar has value ", flagvar)
+
+	After parsing, the arguments after the flag are available as the
+	slice flag.Args() or individually as flag.Arg(i).
+	The arguments are indexed from 0 through flag.NArg()-1.
+
+	Command line flag syntax:
+		-flag
+		-flag=x
+		-flag="x"
+		-flag='x'
+		-flag x  // non-boolean flags only
+	One or two minus signs may be used; they are equivalent.
+	The last form is not permitted for boolean flags because the
+	meaning of the command
+		cmd -x *
+	will change if there is a file called 0, false, etc.  You must
+	use the -flag=false form to turn off a boolean flag.
+
+	Flag parsing stops just before the first non-flag argument
+	("-" is a non-flag argument) or after the terminator "--".
+
+	Integer flags accept 1234, 0664, 0x1234 and may be negative.
+	Boolean flags may be 1, 0, t, f, true, false, TRUE, FALSE, True, False.
+	Duration flags accept any input valid for time.ParseDuration.
+
+	The default set of command-line flags is controlled by
+	top-level functions.  The FlagSet type allows one to define
+	independent sets of flags, such as to implement subcommands
+	in a command-line interface. The methods of FlagSet are
+	analogous to the top-level functions for the command-line
+	flag set.
+*/
 package mflag
 
 import (
@@ -200,24 +201,6 @@ func (i *uint64Value) Get() interface{} { return uint64(*i) }
 
 func (i *uint64Value) String() string { return fmt.Sprintf("%v", *i) }
 
-// -- uint16 Value
-type uint16Value uint16
-
-func newUint16Value(val uint16, p *uint16) *uint16Value {
-	*p = val
-	return (*uint16Value)(p)
-}
-
-func (i *uint16Value) Set(s string) error {
-	v, err := strconv.ParseUint(s, 0, 16)
-	*i = uint16Value(v)
-	return err
-}
-
-func (i *uint16Value) Get() interface{} { return uint16(*i) }
-
-func (i *uint16Value) String() string { return fmt.Sprintf("%v", *i) }
-
 // -- string Value
 type stringValue string
 
@@ -294,7 +277,6 @@ type Getter interface {
 // ErrorHandling defines how to handle flag parsing errors.
 type ErrorHandling int
 
-// ErrorHandling strategies available when a flag parsing error occurs
 const (
 	ContinueOnError ErrorHandling = iota
 	ExitOnError
@@ -376,28 +358,28 @@ func sortFlags(flags map[string]*Flag) []*Flag {
 }
 
 // Name returns the name of the FlagSet.
-func (fs *FlagSet) Name() string {
-	return fs.name
+func (f *FlagSet) Name() string {
+	return f.name
 }
 
 // Out returns the destination for usage and error messages.
-func (fs *FlagSet) Out() io.Writer {
-	if fs.output == nil {
+func (f *FlagSet) Out() io.Writer {
+	if f.output == nil {
 		return os.Stderr
 	}
-	return fs.output
+	return f.output
 }
 
 // SetOutput sets the destination for usage and error messages.
 // If output is nil, os.Stderr is used.
-func (fs *FlagSet) SetOutput(output io.Writer) {
-	fs.output = output
+func (f *FlagSet) SetOutput(output io.Writer) {
+	f.output = output
 }
 
 // VisitAll visits the flags in lexicographical order, calling fn for each.
 // It visits all flags, even those not set.
-func (fs *FlagSet) VisitAll(fn func(*Flag)) {
-	for _, flag := range sortFlags(fs.formal) {
+func (f *FlagSet) VisitAll(fn func(*Flag)) {
+	for _, flag := range sortFlags(f.formal) {
 		fn(flag)
 	}
 }
@@ -410,8 +392,8 @@ func VisitAll(fn func(*Flag)) {
 
 // Visit visits the flags in lexicographical order, calling fn for each.
 // It visits only those flags that have been set.
-func (fs *FlagSet) Visit(fn func(*Flag)) {
-	for _, flag := range sortFlags(fs.actual) {
+func (f *FlagSet) Visit(fn func(*Flag)) {
+	for _, flag := range sortFlags(f.actual) {
 		fn(flag)
 	}
 }
@@ -423,13 +405,13 @@ func Visit(fn func(*Flag)) {
 }
 
 // Lookup returns the Flag structure of the named flag, returning nil if none exists.
-func (fs *FlagSet) Lookup(name string) *Flag {
-	return fs.formal[name]
+func (f *FlagSet) Lookup(name string) *Flag {
+	return f.formal[name]
 }
 
-// IsSet indicates whether the specified flag is set in the given FlagSet
-func (fs *FlagSet) IsSet(name string) bool {
-	return fs.actual[name] != nil
+// Indicates whether the specified flag was specified at all on the cmd line
+func (f *FlagSet) IsSet(name string) bool {
+	return f.actual[name] != nil
 }
 
 // Lookup returns the Flag structure of the named command-line flag,
@@ -438,7 +420,7 @@ func Lookup(name string) *Flag {
 	return CommandLine.formal[name]
 }
 
-// IsSet indicates whether the specified flag was specified at all on the cmd line.
+// Indicates whether the specified flag was specified at all on the cmd line
 func IsSet(name string) bool {
 	return CommandLine.IsSet(name)
 }
@@ -461,15 +443,15 @@ type nArgRequirement struct {
 // The first parameter can be Exact, Max, or Min to respectively specify the exact,
 // the maximum, or the minimal number of arguments required.
 // The actual check is done in FlagSet.CheckArgs().
-func (fs *FlagSet) Require(nArgRequirementType nArgRequirementType, nArg int) {
-	fs.nArgRequirements = append(fs.nArgRequirements, nArgRequirement{nArgRequirementType, nArg})
+func (f *FlagSet) Require(nArgRequirementType nArgRequirementType, nArg int) {
+	f.nArgRequirements = append(f.nArgRequirements, nArgRequirement{nArgRequirementType, nArg})
 }
 
 // CheckArgs uses the requirements set by FlagSet.Require() to validate
 // the number of arguments. If the requirements are not met,
 // an error message string is returned.
-func (fs *FlagSet) CheckArgs() (message string) {
-	for _, req := range fs.nArgRequirements {
+func (f *FlagSet) CheckArgs() (message string) {
+	for _, req := range f.nArgRequirements {
 		var arguments string
 		if req.N == 1 {
 			arguments = "1 argument"
@@ -478,20 +460,20 @@ func (fs *FlagSet) CheckArgs() (message string) {
 		}
 
 		str := func(kind string) string {
-			return fmt.Sprintf("%q requires %s%s", fs.name, kind, arguments)
+			return fmt.Sprintf("%q requires %s%s", f.name, kind, arguments)
 		}
 
 		switch req.Type {
 		case Exact:
-			if fs.NArg() != req.N {
+			if f.NArg() != req.N {
 				return str("")
 			}
 		case Max:
-			if fs.NArg() > req.N {
+			if f.NArg() > req.N {
 				return str("a maximum of ")
 			}
 		case Min:
-			if fs.NArg() < req.N {
+			if f.NArg() < req.N {
 				return str("a minimum of ")
 			}
 		}
@@ -500,18 +482,18 @@ func (fs *FlagSet) CheckArgs() (message string) {
 }
 
 // Set sets the value of the named flag.
-func (fs *FlagSet) Set(name, value string) error {
-	flag, ok := fs.formal[name]
+func (f *FlagSet) Set(name, value string) error {
+	flag, ok := f.formal[name]
 	if !ok {
 		return fmt.Errorf("no such flag -%v", name)
 	}
 	if err := flag.Value.Set(value); err != nil {
 		return err
 	}
-	if fs.actual == nil {
-		fs.actual = make(map[string]*Flag)
+	if f.actual == nil {
+		f.actual = make(map[string]*Flag)
 	}
-	fs.actual[name] = flag
+	f.actual[name] = flag
 	return nil
 }
 
@@ -520,24 +502,10 @@ func Set(name, value string) error {
 	return CommandLine.Set(name, value)
 }
 
-// isZeroValue guesses whether the string represents the zero
-// value for a flag. It is not accurate but in practice works OK.
-func isZeroValue(value string) bool {
-	switch value {
-	case "false":
-		return true
-	case "":
-		return true
-	case "0":
-		return true
-	}
-	return false
-}
-
 // PrintDefaults prints, to standard error unless configured
 // otherwise, the default values of all defined flags in the set.
-func (fs *FlagSet) PrintDefaults() {
-	writer := tabwriter.NewWriter(fs.Out(), 20, 1, 3, ' ', 0)
+func (f *FlagSet) PrintDefaults() {
+	writer := tabwriter.NewWriter(f.Out(), 20, 1, 3, ' ', 0)
 	home := homedir.Get()
 
 	// Don't substitute when HOME is /
@@ -546,32 +514,30 @@ func (fs *FlagSet) PrintDefaults() {
 	}
 
 	// Add a blank line between cmd description and list of options
-	if fs.FlagCount() > 0 {
+	if f.FlagCount() > 0 {
 		fmt.Fprintln(writer, "")
 	}
 
-	fs.VisitAll(func(flag *Flag) {
+	f.VisitAll(func(flag *Flag) {
+		format := "  -%s=%s"
 		names := []string{}
 		for _, name := range flag.Names {
 			if name[0] != '#' {
 				names = append(names, name)
 			}
 		}
-		if len(names) > 0 && len(flag.Usage) > 0 {
+		if len(names) > 0 {
 			val := flag.DefValue
 
 			if home != "" && strings.HasPrefix(val, home) {
 				val = homedir.GetShortcutString() + val[len(home):]
 			}
 
-			if isZeroValue(val) {
-				format := "  -%s"
-				fmt.Fprintf(writer, format, strings.Join(names, ", -"))
-			} else {
-				format := "  -%s=%s"
-				fmt.Fprintf(writer, format, strings.Join(names, ", -"), val)
-			}
-			for _, line := range strings.Split(flag.Usage, "\n") {
+			fmt.Fprintf(writer, format, strings.Join(names, ", -"), val)
+			for i, line := range strings.Split(flag.Usage, "\n") {
+				if i != 0 {
+					line = "  " + line
+				}
 				fmt.Fprintln(writer, "\t", line)
 			}
 		}
@@ -585,13 +551,13 @@ func PrintDefaults() {
 }
 
 // defaultUsage is the default function to print a usage message.
-func defaultUsage(fs *FlagSet) {
-	if fs.name == "" {
-		fmt.Fprintf(fs.Out(), "Usage:\n")
+func defaultUsage(f *FlagSet) {
+	if f.name == "" {
+		fmt.Fprintf(f.Out(), "Usage:\n")
 	} else {
-		fmt.Fprintf(fs.Out(), "Usage of %s:\n", fs.name)
+		fmt.Fprintf(f.Out(), "Usage of %s:\n", f.name)
 	}
-	fs.PrintDefaults()
+	f.PrintDefaults()
 }
 
 // NOTE: Usage is not just defaultUsage(CommandLine)
@@ -605,19 +571,19 @@ var Usage = func() {
 	PrintDefaults()
 }
 
-// ShortUsage prints to standard error a usage message documenting the standard command layout
+// Usage prints to standard error a usage message documenting the standard command layout
 // The function is a variable that may be changed to point to a custom function.
 var ShortUsage = func() {
 	fmt.Fprintf(CommandLine.output, "Usage of %s:\n", os.Args[0])
 }
 
 // FlagCount returns the number of flags that have been defined.
-func (fs *FlagSet) FlagCount() int { return len(sortFlags(fs.formal)) }
+func (f *FlagSet) FlagCount() int { return len(sortFlags(f.formal)) }
 
 // FlagCountUndeprecated returns the number of undeprecated flags that have been defined.
-func (fs *FlagSet) FlagCountUndeprecated() int {
+func (f *FlagSet) FlagCountUndeprecated() int {
 	count := 0
-	for _, flag := range sortFlags(fs.formal) {
+	for _, flag := range sortFlags(f.formal) {
 		for _, name := range flag.Names {
 			if name[0] != '#' {
 				count++
@@ -629,18 +595,18 @@ func (fs *FlagSet) FlagCountUndeprecated() int {
 }
 
 // NFlag returns the number of flags that have been set.
-func (fs *FlagSet) NFlag() int { return len(fs.actual) }
+func (f *FlagSet) NFlag() int { return len(f.actual) }
 
 // NFlag returns the number of command-line flags that have been set.
 func NFlag() int { return len(CommandLine.actual) }
 
 // Arg returns the i'th argument.  Arg(0) is the first remaining argument
 // after flags have been processed.
-func (fs *FlagSet) Arg(i int) string {
-	if i < 0 || i >= len(fs.args) {
+func (f *FlagSet) Arg(i int) string {
+	if i < 0 || i >= len(f.args) {
 		return ""
 	}
-	return fs.args[i]
+	return f.args[i]
 }
 
 // Arg returns the i'th command-line argument.  Arg(0) is the first remaining argument
@@ -650,21 +616,21 @@ func Arg(i int) string {
 }
 
 // NArg is the number of arguments remaining after flags have been processed.
-func (fs *FlagSet) NArg() int { return len(fs.args) }
+func (f *FlagSet) NArg() int { return len(f.args) }
 
 // NArg is the number of arguments remaining after flags have been processed.
 func NArg() int { return len(CommandLine.args) }
 
 // Args returns the non-flag arguments.
-func (fs *FlagSet) Args() []string { return fs.args }
+func (f *FlagSet) Args() []string { return f.args }
 
 // Args returns the non-flag command-line arguments.
 func Args() []string { return CommandLine.args }
 
 // BoolVar defines a bool flag with specified name, default value, and usage string.
 // The argument p points to a bool variable in which to store the value of the flag.
-func (fs *FlagSet) BoolVar(p *bool, names []string, value bool, usage string) {
-	fs.Var(newBoolValue(value, p), names, usage)
+func (f *FlagSet) BoolVar(p *bool, names []string, value bool, usage string) {
+	f.Var(newBoolValue(value, p), names, usage)
 }
 
 // BoolVar defines a bool flag with specified name, default value, and usage string.
@@ -675,9 +641,9 @@ func BoolVar(p *bool, names []string, value bool, usage string) {
 
 // Bool defines a bool flag with specified name, default value, and usage string.
 // The return value is the address of a bool variable that stores the value of the flag.
-func (fs *FlagSet) Bool(names []string, value bool, usage string) *bool {
+func (f *FlagSet) Bool(names []string, value bool, usage string) *bool {
 	p := new(bool)
-	fs.BoolVar(p, names, value, usage)
+	f.BoolVar(p, names, value, usage)
 	return p
 }
 
@@ -689,8 +655,8 @@ func Bool(names []string, value bool, usage string) *bool {
 
 // IntVar defines an int flag with specified name, default value, and usage string.
 // The argument p points to an int variable in which to store the value of the flag.
-func (fs *FlagSet) IntVar(p *int, names []string, value int, usage string) {
-	fs.Var(newIntValue(value, p), names, usage)
+func (f *FlagSet) IntVar(p *int, names []string, value int, usage string) {
+	f.Var(newIntValue(value, p), names, usage)
 }
 
 // IntVar defines an int flag with specified name, default value, and usage string.
@@ -701,9 +667,9 @@ func IntVar(p *int, names []string, value int, usage string) {
 
 // Int defines an int flag with specified name, default value, and usage string.
 // The return value is the address of an int variable that stores the value of the flag.
-func (fs *FlagSet) Int(names []string, value int, usage string) *int {
+func (f *FlagSet) Int(names []string, value int, usage string) *int {
 	p := new(int)
-	fs.IntVar(p, names, value, usage)
+	f.IntVar(p, names, value, usage)
 	return p
 }
 
@@ -715,8 +681,8 @@ func Int(names []string, value int, usage string) *int {
 
 // Int64Var defines an int64 flag with specified name, default value, and usage string.
 // The argument p points to an int64 variable in which to store the value of the flag.
-func (fs *FlagSet) Int64Var(p *int64, names []string, value int64, usage string) {
-	fs.Var(newInt64Value(value, p), names, usage)
+func (f *FlagSet) Int64Var(p *int64, names []string, value int64, usage string) {
+	f.Var(newInt64Value(value, p), names, usage)
 }
 
 // Int64Var defines an int64 flag with specified name, default value, and usage string.
@@ -727,9 +693,9 @@ func Int64Var(p *int64, names []string, value int64, usage string) {
 
 // Int64 defines an int64 flag with specified name, default value, and usage string.
 // The return value is the address of an int64 variable that stores the value of the flag.
-func (fs *FlagSet) Int64(names []string, value int64, usage string) *int64 {
+func (f *FlagSet) Int64(names []string, value int64, usage string) *int64 {
 	p := new(int64)
-	fs.Int64Var(p, names, value, usage)
+	f.Int64Var(p, names, value, usage)
 	return p
 }
 
@@ -741,8 +707,8 @@ func Int64(names []string, value int64, usage string) *int64 {
 
 // UintVar defines a uint flag with specified name, default value, and usage string.
 // The argument p points to a uint variable in which to store the value of the flag.
-func (fs *FlagSet) UintVar(p *uint, names []string, value uint, usage string) {
-	fs.Var(newUintValue(value, p), names, usage)
+func (f *FlagSet) UintVar(p *uint, names []string, value uint, usage string) {
+	f.Var(newUintValue(value, p), names, usage)
 }
 
 // UintVar defines a uint flag with specified name, default value, and usage string.
@@ -753,9 +719,9 @@ func UintVar(p *uint, names []string, value uint, usage string) {
 
 // Uint defines a uint flag with specified name, default value, and usage string.
 // The return value is the address of a uint  variable that stores the value of the flag.
-func (fs *FlagSet) Uint(names []string, value uint, usage string) *uint {
+func (f *FlagSet) Uint(names []string, value uint, usage string) *uint {
 	p := new(uint)
-	fs.UintVar(p, names, value, usage)
+	f.UintVar(p, names, value, usage)
 	return p
 }
 
@@ -767,8 +733,8 @@ func Uint(names []string, value uint, usage string) *uint {
 
 // Uint64Var defines a uint64 flag with specified name, default value, and usage string.
 // The argument p points to a uint64 variable in which to store the value of the flag.
-func (fs *FlagSet) Uint64Var(p *uint64, names []string, value uint64, usage string) {
-	fs.Var(newUint64Value(value, p), names, usage)
+func (f *FlagSet) Uint64Var(p *uint64, names []string, value uint64, usage string) {
+	f.Var(newUint64Value(value, p), names, usage)
 }
 
 // Uint64Var defines a uint64 flag with specified name, default value, and usage string.
@@ -779,9 +745,9 @@ func Uint64Var(p *uint64, names []string, value uint64, usage string) {
 
 // Uint64 defines a uint64 flag with specified name, default value, and usage string.
 // The return value is the address of a uint64 variable that stores the value of the flag.
-func (fs *FlagSet) Uint64(names []string, value uint64, usage string) *uint64 {
+func (f *FlagSet) Uint64(names []string, value uint64, usage string) *uint64 {
 	p := new(uint64)
-	fs.Uint64Var(p, names, value, usage)
+	f.Uint64Var(p, names, value, usage)
 	return p
 }
 
@@ -791,36 +757,10 @@ func Uint64(names []string, value uint64, usage string) *uint64 {
 	return CommandLine.Uint64(names, value, usage)
 }
 
-// Uint16Var defines a uint16 flag with specified name, default value, and usage string.
-// The argument p points to a uint16 variable in which to store the value of the flag.
-func (fs *FlagSet) Uint16Var(p *uint16, names []string, value uint16, usage string) {
-	fs.Var(newUint16Value(value, p), names, usage)
-}
-
-// Uint16Var defines a uint16 flag with specified name, default value, and usage string.
-// The argument p points to a uint16 variable in which to store the value of the flag.
-func Uint16Var(p *uint16, names []string, value uint16, usage string) {
-	CommandLine.Var(newUint16Value(value, p), names, usage)
-}
-
-// Uint16 defines a uint16 flag with specified name, default value, and usage string.
-// The return value is the address of a uint16 variable that stores the value of the flag.
-func (fs *FlagSet) Uint16(names []string, value uint16, usage string) *uint16 {
-	p := new(uint16)
-	fs.Uint16Var(p, names, value, usage)
-	return p
-}
-
-// Uint16 defines a uint16 flag with specified name, default value, and usage string.
-// The return value is the address of a uint16 variable that stores the value of the flag.
-func Uint16(names []string, value uint16, usage string) *uint16 {
-	return CommandLine.Uint16(names, value, usage)
-}
-
 // StringVar defines a string flag with specified name, default value, and usage string.
 // The argument p points to a string variable in which to store the value of the flag.
-func (fs *FlagSet) StringVar(p *string, names []string, value string, usage string) {
-	fs.Var(newStringValue(value, p), names, usage)
+func (f *FlagSet) StringVar(p *string, names []string, value string, usage string) {
+	f.Var(newStringValue(value, p), names, usage)
 }
 
 // StringVar defines a string flag with specified name, default value, and usage string.
@@ -831,9 +771,9 @@ func StringVar(p *string, names []string, value string, usage string) {
 
 // String defines a string flag with specified name, default value, and usage string.
 // The return value is the address of a string variable that stores the value of the flag.
-func (fs *FlagSet) String(names []string, value string, usage string) *string {
+func (f *FlagSet) String(names []string, value string, usage string) *string {
 	p := new(string)
-	fs.StringVar(p, names, value, usage)
+	f.StringVar(p, names, value, usage)
 	return p
 }
 
@@ -845,8 +785,8 @@ func String(names []string, value string, usage string) *string {
 
 // Float64Var defines a float64 flag with specified name, default value, and usage string.
 // The argument p points to a float64 variable in which to store the value of the flag.
-func (fs *FlagSet) Float64Var(p *float64, names []string, value float64, usage string) {
-	fs.Var(newFloat64Value(value, p), names, usage)
+func (f *FlagSet) Float64Var(p *float64, names []string, value float64, usage string) {
+	f.Var(newFloat64Value(value, p), names, usage)
 }
 
 // Float64Var defines a float64 flag with specified name, default value, and usage string.
@@ -857,9 +797,9 @@ func Float64Var(p *float64, names []string, value float64, usage string) {
 
 // Float64 defines a float64 flag with specified name, default value, and usage string.
 // The return value is the address of a float64 variable that stores the value of the flag.
-func (fs *FlagSet) Float64(names []string, value float64, usage string) *float64 {
+func (f *FlagSet) Float64(names []string, value float64, usage string) *float64 {
 	p := new(float64)
-	fs.Float64Var(p, names, value, usage)
+	f.Float64Var(p, names, value, usage)
 	return p
 }
 
@@ -871,8 +811,8 @@ func Float64(names []string, value float64, usage string) *float64 {
 
 // DurationVar defines a time.Duration flag with specified name, default value, and usage string.
 // The argument p points to a time.Duration variable in which to store the value of the flag.
-func (fs *FlagSet) DurationVar(p *time.Duration, names []string, value time.Duration, usage string) {
-	fs.Var(newDurationValue(value, p), names, usage)
+func (f *FlagSet) DurationVar(p *time.Duration, names []string, value time.Duration, usage string) {
+	f.Var(newDurationValue(value, p), names, usage)
 }
 
 // DurationVar defines a time.Duration flag with specified name, default value, and usage string.
@@ -883,9 +823,9 @@ func DurationVar(p *time.Duration, names []string, value time.Duration, usage st
 
 // Duration defines a time.Duration flag with specified name, default value, and usage string.
 // The return value is the address of a time.Duration variable that stores the value of the flag.
-func (fs *FlagSet) Duration(names []string, value time.Duration, usage string) *time.Duration {
+func (f *FlagSet) Duration(names []string, value time.Duration, usage string) *time.Duration {
 	p := new(time.Duration)
-	fs.DurationVar(p, names, value, usage)
+	f.DurationVar(p, names, value, usage)
 	return p
 }
 
@@ -901,26 +841,26 @@ func Duration(names []string, value time.Duration, usage string) *time.Duration 
 // caller could create a flag that turns a comma-separated string into a slice
 // of strings by giving the slice the methods of Value; in particular, Set would
 // decompose the comma-separated string into the slice.
-func (fs *FlagSet) Var(value Value, names []string, usage string) {
+func (f *FlagSet) Var(value Value, names []string, usage string) {
 	// Remember the default value as a string; it won't change.
 	flag := &Flag{names, usage, value, value.String()}
 	for _, name := range names {
 		name = strings.TrimPrefix(name, "#")
-		_, alreadythere := fs.formal[name]
+		_, alreadythere := f.formal[name]
 		if alreadythere {
 			var msg string
-			if fs.name == "" {
+			if f.name == "" {
 				msg = fmt.Sprintf("flag redefined: %s", name)
 			} else {
-				msg = fmt.Sprintf("%s flag redefined: %s", fs.name, name)
+				msg = fmt.Sprintf("%s flag redefined: %s", f.name, name)
 			}
-			fmt.Fprintln(fs.Out(), msg)
+			fmt.Fprintln(f.Out(), msg)
 			panic(msg) // Happens only if flags are declared with identical names
 		}
-		if fs.formal == nil {
-			fs.formal = make(map[string]*Flag)
+		if f.formal == nil {
+			f.formal = make(map[string]*Flag)
 		}
-		fs.formal[name] = flag
+		f.formal[name] = flag
 	}
 }
 
@@ -936,26 +876,26 @@ func Var(value Value, names []string, usage string) {
 
 // failf prints to standard error a formatted error and usage message and
 // returns the error.
-func (fs *FlagSet) failf(format string, a ...interface{}) error {
+func (f *FlagSet) failf(format string, a ...interface{}) error {
 	err := fmt.Errorf(format, a...)
-	fmt.Fprintln(fs.Out(), err)
-	if os.Args[0] == fs.name {
-		fmt.Fprintf(fs.Out(), "See '%s --help'.\n", os.Args[0])
+	fmt.Fprintln(f.Out(), err)
+	if os.Args[0] == f.name {
+		fmt.Fprintf(f.Out(), "See '%s --help'.\n", os.Args[0])
 	} else {
-		fmt.Fprintf(fs.Out(), "See '%s %s --help'.\n", os.Args[0], fs.name)
+		fmt.Fprintf(f.Out(), "See '%s %s --help'.\n", os.Args[0], f.name)
 	}
 	return err
 }
 
 // usage calls the Usage method for the flag set, or the usage function if
 // the flag set is CommandLine.
-func (fs *FlagSet) usage() {
-	if fs == CommandLine {
+func (f *FlagSet) usage() {
+	if f == CommandLine {
 		Usage()
-	} else if fs.Usage == nil {
-		defaultUsage(fs)
+	} else if f.Usage == nil {
+		defaultUsage(f)
 	} else {
-		fs.Usage()
+		f.Usage()
 	}
 }
 
@@ -994,25 +934,25 @@ func trimQuotes(str string) string {
 }
 
 // parseOne parses one flag. It reports whether a flag was seen.
-func (fs *FlagSet) parseOne() (bool, string, error) {
-	if len(fs.args) == 0 {
+func (f *FlagSet) parseOne() (bool, string, error) {
+	if len(f.args) == 0 {
 		return false, "", nil
 	}
-	s := fs.args[0]
+	s := f.args[0]
 	if len(s) == 0 || s[0] != '-' || len(s) == 1 {
 		return false, "", nil
 	}
 	if s[1] == '-' && len(s) == 2 { // "--" terminates the flags
-		fs.args = fs.args[1:]
+		f.args = f.args[1:]
 		return false, "", nil
 	}
 	name := s[1:]
 	if len(name) == 0 || name[0] == '=' {
-		return false, "", fs.failf("bad flag syntax: %s", s)
+		return false, "", f.failf("bad flag syntax: %s", s)
 	}
 
 	// it's a flag. does it have an argument?
-	fs.args = fs.args[1:]
+	f.args = f.args[1:]
 	hasValue := false
 	value := ""
 	if i := strings.Index(name, "="); i != -1 {
@@ -1021,44 +961,44 @@ func (fs *FlagSet) parseOne() (bool, string, error) {
 		name = name[:i]
 	}
 
-	m := fs.formal
+	m := f.formal
 	flag, alreadythere := m[name] // BUG
 	if !alreadythere {
 		if name == "-help" || name == "help" || name == "h" { // special case for nice help message.
-			fs.usage()
+			f.usage()
 			return false, "", ErrHelp
 		}
 		if len(name) > 0 && name[0] == '-' {
-			return false, "", fs.failf("flag provided but not defined: -%s", name)
+			return false, "", f.failf("flag provided but not defined: -%s", name)
 		}
 		return false, name, ErrRetry
 	}
 	if fv, ok := flag.Value.(boolFlag); ok && fv.IsBoolFlag() { // special case: doesn't need an arg
 		if hasValue {
 			if err := fv.Set(value); err != nil {
-				return false, "", fs.failf("invalid boolean value %q for  -%s: %v", value, name, err)
+				return false, "", f.failf("invalid boolean value %q for  -%s: %v", value, name, err)
 			}
 		} else {
 			fv.Set("true")
 		}
 	} else {
 		// It must have a value, which might be the next argument.
-		if !hasValue && len(fs.args) > 0 {
+		if !hasValue && len(f.args) > 0 {
 			// value is the next arg
 			hasValue = true
-			value, fs.args = fs.args[0], fs.args[1:]
+			value, f.args = f.args[0], f.args[1:]
 		}
 		if !hasValue {
-			return false, "", fs.failf("flag needs an argument: -%s", name)
+			return false, "", f.failf("flag needs an argument: -%s", name)
 		}
 		if err := flag.Value.Set(value); err != nil {
-			return false, "", fs.failf("invalid value %q for flag -%s: %v", value, name, err)
+			return false, "", f.failf("invalid value %q for flag -%s: %v", value, name, err)
 		}
 	}
-	if fs.actual == nil {
-		fs.actual = make(map[string]*Flag)
+	if f.actual == nil {
+		f.actual = make(map[string]*Flag)
 	}
-	fs.actual[name] = flag
+	f.actual[name] = flag
 	for i, n := range flag.Names {
 		if n == fmt.Sprintf("#%s", name) {
 			replacement := ""
@@ -1069,9 +1009,9 @@ func (fs *FlagSet) parseOne() (bool, string, error) {
 				}
 			}
 			if replacement != "" {
-				fmt.Fprintf(fs.Out(), "Warning: '-%s' is deprecated, it will be replaced by '-%s' soon. See usage.\n", name, replacement)
+				fmt.Fprintf(f.Out(), "Warning: '-%s' is deprecated, it will be replaced by '-%s' soon. See usage.\n", name, replacement)
 			} else {
-				fmt.Fprintf(fs.Out(), "Warning: '-%s' is deprecated, it will be removed soon. See usage.\n", name)
+				fmt.Fprintf(f.Out(), "Warning: '-%s' is deprecated, it will be removed soon. See usage.\n", name)
 			}
 		}
 	}
@@ -1082,11 +1022,11 @@ func (fs *FlagSet) parseOne() (bool, string, error) {
 // include the command name.  Must be called after all flags in the FlagSet
 // are defined and before flags are accessed by the program.
 // The return value will be ErrHelp if -help was set but not defined.
-func (fs *FlagSet) Parse(arguments []string) error {
-	fs.parsed = true
-	fs.args = arguments
+func (f *FlagSet) Parse(arguments []string) error {
+	f.parsed = true
+	f.args = arguments
 	for {
-		seen, name, err := fs.parseOne()
+		seen, name, err := f.parseOne()
 		if seen {
 			continue
 		}
@@ -1097,13 +1037,13 @@ func (fs *FlagSet) Parse(arguments []string) error {
 			if len(name) > 1 {
 				err = nil
 				for _, letter := range strings.Split(name, "") {
-					fs.args = append([]string{"-" + letter}, fs.args...)
-					seen2, _, err2 := fs.parseOne()
+					f.args = append([]string{"-" + letter}, f.args...)
+					seen2, _, err2 := f.parseOne()
 					if seen2 {
 						continue
 					}
 					if err2 != nil {
-						err = fs.failf("flag provided but not defined: -%s", name)
+						err = f.failf("flag provided but not defined: -%s", name)
 						break
 					}
 				}
@@ -1111,14 +1051,14 @@ func (fs *FlagSet) Parse(arguments []string) error {
 					continue
 				}
 			} else {
-				err = fs.failf("flag provided but not defined: -%s", name)
+				err = f.failf("flag provided but not defined: -%s", name)
 			}
 		}
-		switch fs.errorHandling {
+		switch f.errorHandling {
 		case ContinueOnError:
 			return err
 		case ExitOnError:
-			os.Exit(125)
+			os.Exit(2)
 		case PanicOnError:
 			panic(err)
 		}
@@ -1127,48 +1067,46 @@ func (fs *FlagSet) Parse(arguments []string) error {
 }
 
 // ParseFlags is a utility function that adds a help flag if withHelp is true,
-// calls fs.Parse(args) and prints a relevant error message if there are
+// calls cmd.Parse(args) and prints a relevant error message if there are
 // incorrect number of arguments. It returns error only if error handling is
 // set to ContinueOnError and parsing fails. If error handling is set to
 // ExitOnError, it's safe to ignore the return value.
-func (fs *FlagSet) ParseFlags(args []string, withHelp bool) error {
+func (cmd *FlagSet) ParseFlags(args []string, withHelp bool) error {
 	var help *bool
 	if withHelp {
-		help = fs.Bool([]string{"#help", "-help"}, false, "Print usage")
+		help = cmd.Bool([]string{"#help", "-help"}, false, "Print usage")
 	}
-	if err := fs.Parse(args); err != nil {
+	if err := cmd.Parse(args); err != nil {
 		return err
 	}
 	if help != nil && *help {
-		fs.SetOutput(os.Stdout)
-		fs.Usage()
+		cmd.SetOutput(os.Stdout)
+		cmd.Usage()
 		os.Exit(0)
 	}
-	if str := fs.CheckArgs(); str != "" {
-		fs.SetOutput(os.Stderr)
-		fs.ReportError(str, withHelp)
-		fs.ShortUsage()
+	if str := cmd.CheckArgs(); str != "" {
+		cmd.SetOutput(os.Stderr)
+		cmd.ReportError(str, withHelp)
+		cmd.ShortUsage()
 		os.Exit(1)
 	}
 	return nil
 }
 
-// ReportError is a utility method that prints a user-friendly message
-// containing the error that occurred during parsing and a suggestion to get help
-func (fs *FlagSet) ReportError(str string, withHelp bool) {
+func (cmd *FlagSet) ReportError(str string, withHelp bool) {
 	if withHelp {
-		if os.Args[0] == fs.Name() {
+		if os.Args[0] == cmd.Name() {
 			str += ".\nSee '" + os.Args[0] + " --help'"
 		} else {
-			str += ".\nSee '" + os.Args[0] + " " + fs.Name() + " --help'"
+			str += ".\nSee '" + os.Args[0] + " " + cmd.Name() + " --help'"
 		}
 	}
-	fmt.Fprintf(fs.Out(), "%s: %s.\n", os.Args[0], str)
+	fmt.Fprintf(cmd.Out(), "docker: %s.\n", str)
 }
 
-// Parsed reports whether fs.Parse has been called.
-func (fs *FlagSet) Parsed() bool {
-	return fs.parsed
+// Parsed reports whether f.Parse has been called.
+func (f *FlagSet) Parsed() bool {
+	return f.parsed
 }
 
 // Parse parses the command-line flags from os.Args[1:].  Must be called
@@ -1201,80 +1139,7 @@ func NewFlagSet(name string, errorHandling ErrorHandling) *FlagSet {
 // Init sets the name and error handling property for a flag set.
 // By default, the zero FlagSet uses an empty name and the
 // ContinueOnError error handling policy.
-func (fs *FlagSet) Init(name string, errorHandling ErrorHandling) {
-	fs.name = name
-	fs.errorHandling = errorHandling
-}
-
-type mergeVal struct {
-	Value
-	key  string
-	fset *FlagSet
-}
-
-func (v mergeVal) Set(s string) error {
-	return v.fset.Set(v.key, s)
-}
-
-func (v mergeVal) IsBoolFlag() bool {
-	if b, ok := v.Value.(boolFlag); ok {
-		return b.IsBoolFlag()
-	}
-	return false
-}
-
-// Name returns the name of a mergeVal.
-// If the original value had a name, return the original name,
-// otherwise, return the key asinged to this mergeVal.
-func (v mergeVal) Name() string {
-	type namedValue interface {
-		Name() string
-	}
-	if nVal, ok := v.Value.(namedValue); ok {
-		return nVal.Name()
-	}
-	return v.key
-}
-
-// Merge is a helper function that merges n FlagSets into a single dest FlagSet
-// In case of name collision between the flagsets it will apply
-// the destination FlagSet's errorHandling behavior.
-func Merge(dest *FlagSet, flagsets ...*FlagSet) error {
-	for _, fset := range flagsets {
-		if fset.formal == nil {
-			continue
-		}
-		for k, f := range fset.formal {
-			if _, ok := dest.formal[k]; ok {
-				var err error
-				if fset.name == "" {
-					err = fmt.Errorf("flag redefined: %s", k)
-				} else {
-					err = fmt.Errorf("%s flag redefined: %s", fset.name, k)
-				}
-				fmt.Fprintln(fset.Out(), err.Error())
-				// Happens only if flags are declared with identical names
-				switch dest.errorHandling {
-				case ContinueOnError:
-					return err
-				case ExitOnError:
-					os.Exit(2)
-				case PanicOnError:
-					panic(err)
-				}
-			}
-			newF := *f
-			newF.Value = mergeVal{f.Value, k, fset}
-			if dest.formal == nil {
-				dest.formal = make(map[string]*Flag)
-			}
-			dest.formal[k] = &newF
-		}
-	}
-	return nil
-}
-
-// IsEmpty reports if the FlagSet is actually empty.
-func (fs *FlagSet) IsEmpty() bool {
-	return len(fs.actual) == 0
+func (f *FlagSet) Init(name string, errorHandling ErrorHandling) {
+	f.name = name
+	f.errorHandling = errorHandling
 }

@@ -13,15 +13,9 @@ func TestNewAndRemove(t *testing.T) {
 		t.Fatal("Could not create test directory")
 	}
 
-	path := filepath.Join(dir, "testfile")
-	file, err := New(path)
+	file, err := New(filepath.Join(dir, "testfile"))
 	if err != nil {
 		t.Fatal("Could not create test file", err)
-	}
-
-	_, err = New(path)
-	if err == nil {
-		t.Fatal("Test file creation not blocked")
 	}
 
 	if err := file.Remove(); err != nil {
@@ -30,7 +24,7 @@ func TestNewAndRemove(t *testing.T) {
 }
 
 func TestRemoveInvalidPath(t *testing.T) {
-	file := PIDFile{path: filepath.Join("foo", "bar")}
+	file := PidFile{path: filepath.Join("foo", "bar")}
 
 	if err := file.Remove(); err == nil {
 		t.Fatal("Non-existing file doesn't give an error on delete")

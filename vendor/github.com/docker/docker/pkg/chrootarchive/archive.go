@@ -3,12 +3,11 @@ package chrootarchive
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/docker/docker/pkg/archive"
-	"github.com/docker/docker/pkg/idtools"
+	"github.com/docker/docker/pkg/system"
 )
 
 var chrootArchiver = &archive.Archiver{Untar: Untar}
@@ -18,18 +17,6 @@ var chrootArchiver = &archive.Archiver{Untar: Untar}
 // The archive may be compressed with one of the following algorithms:
 //  identity (uncompressed), gzip, bzip2, xz.
 func Untar(tarArchive io.Reader, dest string, options *archive.TarOptions) error {
-	return untarHandler(tarArchive, dest, options, true)
-}
-
-// UntarUncompressed reads a stream of bytes from `archive`, parses it as a tar archive,
-// and unpacks it into the directory at `dest`.
-// The archive must be an uncompressed stream.
-func UntarUncompressed(tarArchive io.Reader, dest string, options *archive.TarOptions) error {
-	return untarHandler(tarArchive, dest, options, false)
-}
-
-// Handler for teasing out the automatic decompression
-func untarHandler(tarArchive io.Reader, dest string, options *archive.TarOptions, decompress bool) error {
 
 	if tarArchive == nil {
 		return fmt.Errorf("Empty archive")
@@ -41,29 +28,20 @@ func untarHandler(tarArchive io.Reader, dest string, options *archive.TarOptions
 		options.ExcludePatterns = []string{}
 	}
 
-	rootUID, rootGID, err := idtools.GetRootUIDGID(options.UIDMaps, options.GIDMaps)
+	dest = filepath.Clean(dest)
+	if _, err := os.Stat(dest); os.IsNotExist(err) {
+		if err := system.MkdirAll(dest, 0777); err != nil {
+			return err
+		}
+	}
+
+	decompressedArchive, err := archive.DecompressStream(tarArchive)
 	if err != nil {
 		return err
 	}
+	defer decompressedArchive.Close()
 
-	dest = filepath.Clean(dest)
-	if _, err := os.Stat(dest); os.IsNotExist(err) {
-		if err := idtools.MkdirAllNewAs(dest, 0755, rootUID, rootGID); err != nil {
-			return err
-		}
-	}
-
-	r := ioutil.NopCloser(tarArchive)
-	if decompress {
-		decompressedArchive, err := archive.DecompressStream(tarArchive)
-		if err != nil {
-			return err
-		}
-		defer decompressedArchive.Close()
-		r = decompressedArchive
-	}
-
-	return invokeUnpack(r, dest, options)
+	return invokeUnpack(decompressedArchive, dest, options)
 }
 
 // TarUntar is a convenience function which calls Tar and Untar, with the output of one piped into the other.

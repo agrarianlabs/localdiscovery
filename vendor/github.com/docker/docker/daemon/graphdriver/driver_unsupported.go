@@ -1,4 +1,4 @@
-// +build !linux,!windows,!freebsd,!solaris
+// +build !linux,!windows
 
 package graphdriver
 
@@ -9,7 +9,6 @@ var (
 	}
 )
 
-// GetFSMagic returns the filesystem id given the path.
 func GetFSMagic(rootpath string) (FsMagic, error) {
 	return FsMagicUnsupported, nil
 }

@@ -6,14 +6,14 @@ import (
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/signal"
+	psignal "github.com/docker/docker/pkg/signal"
 	"github.com/docker/docker/pkg/system"
 )
 
-func setupDumpStackTrap(root string) {
+func setupDumpStackTrap() {
 	// Windows does not support signals like *nix systems. So instead of
 	// trapping on SIGUSR1 to dump stacks, we wait on a Win32 event to be
-	// signaled.
+	// signalled.
 	go func() {
 		sa := syscall.SecurityAttributes{
 			Length: 0,
@@ -23,7 +23,7 @@ func setupDumpStackTrap(root string) {
 			logrus.Debugf("Stackdump - waiting signal at %s", ev)
 			for {
 				syscall.WaitForSingleObject(h, syscall.INFINITE)
-				signal.DumpStacks(root)
+				psignal.DumpStacks()
 			}
 		}
 	}()

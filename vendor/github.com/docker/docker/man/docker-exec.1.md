@@ -6,18 +6,16 @@ docker-exec - Run a command in a running container
 
 # SYNOPSIS
 **docker exec**
-[**-d**|**--detach**]
-[**--detach-keys**[=*[]*]]
+[**-d**|**--detach**[=*false*]]
 [**--help**]
-[**-i**|**--interactive**]
-[**--privileged**]
-[**-t**|**--tty**]
+[**-i**|**--interactive**[=*false*]]
+[**-t**|**--tty**[=*false*]]
 [**-u**|**--user**[=*USER*]]
 CONTAINER COMMAND [ARG...]
 
 # DESCRIPTION
 
-Run a process in a running container.
+Run a process in a running container. 
 
 The command started using `docker exec` will only run while the container's primary
 process (`PID 1`) is running, and will not be restarted if the container is restarted.
@@ -29,22 +27,11 @@ container is unpaused, and then run
 **-d**, **--detach**=*true*|*false*
    Detached mode: run command in the background. The default is *false*.
 
-**--detach-keys**=""
-  Override the key sequence for detaching a container. Format is a single character `[a-Z]` or `ctrl-<value>` where `<value>` is one of: `a-z`, `@`, `^`, `[`, `,` or `_`.
-
 **--help**
   Print usage statement
 
 **-i**, **--interactive**=*true*|*false*
    Keep STDIN open even if not attached. The default is *false*.
-
-**--privileged**=*true*|*false*
-   Give the process extended [Linux capabilities](http://man7.org/linux/man-pages/man7/capabilities.7.html)
-when running in a container. The default is *false*.
-
-   Without this flag, the process run by `docker exec` in a running container has
-the same capabilities as the container, which may be limited. Set
-`--privileged` to give all capabilities to the process.
 
 **-t**, **--tty**=*true*|*false*
    Allocate a pseudo-TTY. The default is *false*.

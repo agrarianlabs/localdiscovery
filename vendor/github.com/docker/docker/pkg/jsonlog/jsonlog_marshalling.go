@@ -13,6 +13,8 @@
 //        "bytes"
 //-
 //        "unicode/utf8"
+//+
+//+       "github.com/docker/docker/pkg/timeutils"
 // )
 //
 // func (mj *JSONLog) MarshalJSON() ([]byte, error) {
@@ -41,7 +43,7 @@
 //        }
 //        buf.WriteString(`"time":`)
 //-       obj, err = mj.Created.MarshalJSON()
-//+       timestamp, err = FastTimeMarshalJSON(mj.Created)
+//+       timestamp, err = timeutils.FastMarshalJSON(mj.Created)
 //        if err != nil {
 //                return err
 //        }
@@ -59,7 +61,7 @@
 // -               }
 // +               first = false
 //                 buf.WriteString(`"log":`)
-//                 ffjsonWriteJSONString(buf, mj.Log)
+//                 ffjson_WriteJsonString(buf, mj.Log)
 //         }
 
 package jsonlog
@@ -67,9 +69,10 @@ package jsonlog
 import (
 	"bytes"
 	"unicode/utf8"
+
+	"github.com/docker/docker/pkg/timeutils"
 )
 
-// MarshalJSON marshals the JSONLog.
 func (mj *JSONLog) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.Grow(1024)
@@ -79,33 +82,34 @@ func (mj *JSONLog) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// MarshalJSONBuf marshals the JSONLog and stores the result to a bytes.Buffer.
 func (mj *JSONLog) MarshalJSONBuf(buf *bytes.Buffer) error {
 	var (
 		err       error
 		timestamp string
-		first     = true
+		first     bool = true
 	)
 	buf.WriteString(`{`)
 	if len(mj.Log) != 0 {
 		first = false
 		buf.WriteString(`"log":`)
-		ffjsonWriteJSONString(buf, mj.Log)
+		ffjson_WriteJsonString(buf, mj.Log)
 	}
 	if len(mj.Stream) != 0 {
-		if first {
+		if first == true {
 			first = false
 		} else {
 			buf.WriteString(`,`)
 		}
 		buf.WriteString(`"stream":`)
-		ffjsonWriteJSONString(buf, mj.Stream)
+		ffjson_WriteJsonString(buf, mj.Stream)
 	}
-	if !first {
+	if first == true {
+		first = false
+	} else {
 		buf.WriteString(`,`)
 	}
 	buf.WriteString(`"time":`)
-	timestamp, err = FastTimeMarshalJSON(mj.Created)
+	timestamp, err = timeutils.FastMarshalJSON(mj.Created)
 	if err != nil {
 		return err
 	}
@@ -114,7 +118,7 @@ func (mj *JSONLog) MarshalJSONBuf(buf *bytes.Buffer) error {
 	return nil
 }
 
-func ffjsonWriteJSONString(buf *bytes.Buffer, s string) {
+func ffjson_WriteJsonString(buf *bytes.Buffer, s string) {
 	const hex = "0123456789abcdef"
 
 	buf.WriteByte('"')

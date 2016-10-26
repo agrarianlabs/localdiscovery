@@ -7,7 +7,7 @@ import (
 )
 
 func TestLibVersion(t *testing.T) {
-	if btrfsLibVersion() <= 0 {
+	if BtrfsLibVersion() <= 0 {
 		t.Errorf("expected output from btrfs lib version > 0")
 	}
 }

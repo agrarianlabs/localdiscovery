@@ -1,5 +1,3 @@
-// +build !windows
-
 package main
 
 import (
@@ -75,7 +73,7 @@ func main() {
 	args := flag.Args()
 
 	home := path.Join(*root, "devicemapper")
-	devices, err := devmapper.NewDeviceSet(home, false, nil, nil, nil)
+	devices, err := devmapper.NewDeviceSet(home, false, nil)
 	if err != nil {
 		fmt.Println("Can't initialize device mapper: ", err)
 		os.Exit(1)
@@ -107,9 +105,9 @@ func main() {
 			fmt.Println("Can't get device info: ", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Id: %d\n", status.DeviceID)
+		fmt.Printf("Id: %d\n", status.DeviceId)
 		fmt.Printf("Size: %d\n", status.Size)
-		fmt.Printf("Transaction Id: %d\n", status.TransactionID)
+		fmt.Printf("Transaction Id: %d\n", status.TransactionId)
 		fmt.Printf("Size in Sectors: %d\n", status.SizeInSectors)
 		fmt.Printf("Mapped Sectors: %d\n", status.MappedSectors)
 		fmt.Printf("Highest Mapped Sector: %d\n", status.HighestMappedSector)
@@ -137,7 +135,7 @@ func main() {
 			usage()
 		}
 
-		err := devices.AddDevice(args[1], args[2], nil)
+		err := devices.AddDevice(args[1], args[2])
 		if err != nil {
 			fmt.Println("Can't create snap device: ", err)
 			os.Exit(1)

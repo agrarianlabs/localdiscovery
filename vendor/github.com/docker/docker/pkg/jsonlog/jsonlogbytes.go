@@ -2,32 +2,28 @@ package jsonlog
 
 import (
 	"bytes"
-	"encoding/json"
 	"unicode/utf8"
 )
 
-// JSONLogs is based on JSONLog.
+// JSONLogBytes is based on JSONLog.
 // It allows marshalling JSONLog from Log as []byte
 // and an already marshalled Created timestamp.
-type JSONLogs struct {
+type JSONLogBytes struct {
 	Log     []byte `json:"log,omitempty"`
 	Stream  string `json:"stream,omitempty"`
 	Created string `json:"time"`
-
-	// json-encoded bytes
-	RawAttrs json.RawMessage `json:"attrs,omitempty"`
 }
 
 // MarshalJSONBuf is based on the same method from JSONLog
 // It has been modified to take into account the necessary changes.
-func (mj *JSONLogs) MarshalJSONBuf(buf *bytes.Buffer) error {
+func (mj *JSONLogBytes) MarshalJSONBuf(buf *bytes.Buffer) error {
 	var first = true
 
 	buf.WriteString(`{`)
 	if len(mj.Log) != 0 {
 		first = false
 		buf.WriteString(`"log":`)
-		ffjsonWriteJSONBytesAsString(buf, mj.Log)
+		ffjson_WriteJsonBytesAsString(buf, mj.Log)
 	}
 	if len(mj.Stream) != 0 {
 		if first == true {
@@ -36,18 +32,11 @@ func (mj *JSONLogs) MarshalJSONBuf(buf *bytes.Buffer) error {
 			buf.WriteString(`,`)
 		}
 		buf.WriteString(`"stream":`)
-		ffjsonWriteJSONString(buf, mj.Stream)
+		ffjson_WriteJsonString(buf, mj.Stream)
 	}
-	if len(mj.RawAttrs) > 0 {
-		if first {
-			first = false
-		} else {
-			buf.WriteString(`,`)
-		}
-		buf.WriteString(`"attrs":`)
-		buf.Write(mj.RawAttrs)
-	}
-	if !first {
+	if first == true {
+		first = false
+	} else {
 		buf.WriteString(`,`)
 	}
 	buf.WriteString(`"time":`)
@@ -56,9 +45,9 @@ func (mj *JSONLogs) MarshalJSONBuf(buf *bytes.Buffer) error {
 	return nil
 }
 
-// This is based on ffjsonWriteJSONBytesAsString. It has been changed
+// This is based on ffjson_WriteJsonString. It has been changed
 // to accept a string passed as a slice of bytes.
-func ffjsonWriteJSONBytesAsString(buf *bytes.Buffer, s []byte) {
+func ffjson_WriteJsonBytesAsString(buf *bytes.Buffer, s []byte) {
 	const hex = "0123456789abcdef"
 
 	buf.WriteByte('"')

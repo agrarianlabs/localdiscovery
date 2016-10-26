@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// MimeTypes stores the MIME content type.
 var MimeTypes = struct {
 	TextPlain   string
 	Tar         string

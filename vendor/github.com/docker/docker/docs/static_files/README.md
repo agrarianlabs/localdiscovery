@@ -1,9 +1,3 @@
-<!--[metadata]>
-+++
-draft = true
-+++
-<![end-metadata]-->
-
 Static files dir
 ================
 

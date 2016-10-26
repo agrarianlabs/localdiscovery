@@ -1,5 +1,3 @@
-// +build cgo
-
 package graphdb
 
 import "database/sql"

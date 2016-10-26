@@ -6,7 +6,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/docker/docker/pkg/integration/checker"
 	"github.com/go-check/check"
 )
 
@@ -18,7 +17,9 @@ func startServerContainer(c *check.C, msg string, port int) string {
 		"busybox",
 		"sh", "-c", fmt.Sprintf("echo %q | nc -lp %d", msg, port),
 	}
-	c.Assert(waitForContainer(name, cmd...), check.IsNil)
+	if err := waitForContainer(name, cmd...); err != nil {
+		c.Fatalf("Failed to launch server container: %v", err)
+	}
 	return name
 }
 
@@ -29,11 +30,14 @@ func getExternalAddress(c *check.C) net.IP {
 	}
 
 	ifaceAddrs, err := iface.Addrs()
-	c.Assert(err, check.IsNil)
-	c.Assert(ifaceAddrs, checker.Not(checker.HasLen), 0)
+	if err != nil || len(ifaceAddrs) == 0 {
+		c.Fatalf("Error retrieving addresses for eth0: %v (%d addresses)", err, len(ifaceAddrs))
+	}
 
 	ifaceIP, _, err := net.ParseCIDR(ifaceAddrs[0].String())
-	c.Assert(err, check.IsNil)
+	if err != nil {
+		c.Fatalf("Error retrieving the up for eth0: %s", err)
+	}
 
 	return ifaceIP
 }
@@ -44,50 +48,61 @@ func getContainerLogs(c *check.C, containerID string) string {
 }
 
 func getContainerStatus(c *check.C, containerID string) string {
-	out := inspectField(c, containerID, "State.Running")
+	out, err := inspectField(containerID, "State.Running")
+	c.Assert(err, check.IsNil)
 	return out
 }
 
 func (s *DockerSuite) TestNetworkNat(c *check.C) {
-	testRequires(c, DaemonIsLinux, SameHostDaemon)
+	testRequires(c, SameHostDaemon, NativeExecDriver)
 	msg := "it works"
 	startServerContainer(c, msg, 8080)
 	endpoint := getExternalAddress(c)
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", endpoint.String(), 8080))
-	c.Assert(err, check.IsNil)
-
+	if err != nil {
+		c.Fatalf("Failed to connect to container (%v)", err)
+	}
 	data, err := ioutil.ReadAll(conn)
 	conn.Close()
-	c.Assert(err, check.IsNil)
-
+	if err != nil {
+		c.Fatal(err)
+	}
 	final := strings.TrimRight(string(data), "\n")
-	c.Assert(final, checker.Equals, msg)
+	if final != msg {
+		c.Fatalf("Expected message %q but received %q", msg, final)
+	}
 }
 
 func (s *DockerSuite) TestNetworkLocalhostTCPNat(c *check.C) {
-	testRequires(c, DaemonIsLinux, SameHostDaemon)
+	testRequires(c, SameHostDaemon, NativeExecDriver)
 	var (
 		msg = "hi yall"
 	)
 	startServerContainer(c, msg, 8081)
 	conn, err := net.Dial("tcp", "localhost:8081")
-	c.Assert(err, check.IsNil)
-
+	if err != nil {
+		c.Fatalf("Failed to connect to container (%v)", err)
+	}
 	data, err := ioutil.ReadAll(conn)
 	conn.Close()
-	c.Assert(err, check.IsNil)
-
+	if err != nil {
+		c.Fatal(err)
+	}
 	final := strings.TrimRight(string(data), "\n")
-	c.Assert(final, checker.Equals, msg)
+	if final != msg {
+		c.Fatalf("Expected message %q but received %q", msg, final)
+	}
 }
 
 func (s *DockerSuite) TestNetworkLoopbackNat(c *check.C) {
-	testRequires(c, DaemonIsLinux, SameHostDaemon, NotUserNamespace)
+	testRequires(c, SameHostDaemon, NativeExecDriver)
 	msg := "it works"
 	startServerContainer(c, msg, 8080)
 	endpoint := getExternalAddress(c)
 	out, _ := dockerCmd(c, "run", "-t", "--net=container:server", "busybox",
 		"sh", "-c", fmt.Sprintf("stty raw && nc -w 5 %s 8080", endpoint.String()))
 	final := strings.TrimRight(string(out), "\n")
-	c.Assert(final, checker.Equals, msg)
+	if final != msg {
+		c.Fatalf("Expected message %q but received %q", msg, final)
+	}
 }

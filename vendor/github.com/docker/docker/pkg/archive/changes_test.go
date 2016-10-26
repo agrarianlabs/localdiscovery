@@ -5,12 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"runtime"
 	"sort"
 	"testing"
 	"time"
-
-	"github.com/docker/docker/pkg/system"
 )
 
 func max(x, y int) int {
@@ -66,9 +63,6 @@ func createSampleDir(t *testing.T, root string) {
 		{Regular, "dir4/file3-2", "file4-2\n", 0666},
 		{Symlink, "symlink1", "target1", 0666},
 		{Symlink, "symlink2", "target2", 0666},
-		{Symlink, "symlink3", root + "/file1", 0666},
-		{Symlink, "symlink4", root + "/symlink3", 0666},
-		{Symlink, "dirSymlink", root + "/dir1", 0740},
 	}
 
 	now := time.Now()
@@ -90,7 +84,7 @@ func createSampleDir(t *testing.T, root string) {
 
 		if info.filetype != Symlink {
 			// Set a consistent ctime, atime for all files and dirs
-			if err := system.Chtimes(p, now, now); err != nil {
+			if err := os.Chtimes(p, now, now); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -116,11 +110,6 @@ func TestChangeString(t *testing.T) {
 }
 
 func TestChangesWithNoChanges(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks on Windows")
-	}
 	rwLayer, err := ioutil.TempDir("", "docker-changes-test")
 	if err != nil {
 		t.Fatal(err)
@@ -142,11 +131,6 @@ func TestChangesWithNoChanges(t *testing.T) {
 }
 
 func TestChangesWithChanges(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks on Windows")
-	}
 	// Mock the readonly layer
 	layer, err := ioutil.TempDir("", "docker-changes-test-layer")
 	if err != nil {
@@ -193,11 +177,6 @@ func TestChangesWithChanges(t *testing.T) {
 
 // See https://github.com/docker/docker/pull/13590
 func TestChangesWithChangesGH13590(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks on Windows")
-	}
 	baseLayer, err := ioutil.TempDir("", "docker-changes-test.")
 	defer os.RemoveAll(baseLayer)
 
@@ -252,13 +231,8 @@ func TestChangesWithChangesGH13590(t *testing.T) {
 	checkChanges(expectedChanges, changes, t)
 }
 
-// Create a directory, copy it, make sure we report no changes between the two
+// Create an directory, copy it, make sure we report no changes between the two
 func TestChangesDirsEmpty(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks on Windows")
-	}
 	src, err := ioutil.TempDir("", "docker-changes-test")
 	if err != nil {
 		t.Fatal(err)
@@ -312,7 +286,7 @@ func mutateSampleDir(t *testing.T, root string) {
 	}
 
 	// Touch file
-	if err := system.Chtimes(path.Join(root, "file4"), time.Now().Add(time.Second), time.Now().Add(time.Second)); err != nil {
+	if err := os.Chtimes(path.Join(root, "file4"), time.Now().Add(time.Second), time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -356,17 +330,12 @@ func mutateSampleDir(t *testing.T, root string) {
 	}
 
 	// Touch dir
-	if err := system.Chtimes(path.Join(root, "dir3"), time.Now().Add(time.Second), time.Now().Add(time.Second)); err != nil {
+	if err := os.Chtimes(path.Join(root, "dir3"), time.Now().Add(time.Second), time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestChangesDirsMutated(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks on Windows")
-	}
 	src, err := ioutil.TempDir("", "docker-changes-test")
 	if err != nil {
 		t.Fatal(err)
@@ -423,11 +392,6 @@ func TestChangesDirsMutated(t *testing.T) {
 }
 
 func TestApplyLayer(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks on Windows")
-	}
 	src, err := ioutil.TempDir("", "docker-changes-test")
 	if err != nil {
 		t.Fatal(err)
@@ -446,7 +410,7 @@ func TestApplyLayer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	layer, err := ExportChanges(dst, changes, nil, nil)
+	layer, err := ExportChanges(dst, changes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,40 +431,6 @@ func TestApplyLayer(t *testing.T) {
 
 	if len(changes2) != 0 {
 		t.Fatalf("Unexpected differences after reapplying mutation: %v", changes2)
-	}
-}
-
-func TestChangesSizeWithHardlinks(t *testing.T) {
-	// TODO Windows. There may be a way of running this, but turning off for now
-	// as createSampleDir uses symlinks.
-	if runtime.GOOS == "windows" {
-		t.Skip("hardlinks on Windows")
-	}
-	srcDir, err := ioutil.TempDir("", "docker-test-srcDir")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(srcDir)
-
-	destDir, err := ioutil.TempDir("", "docker-test-destDir")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(destDir)
-
-	creationSize, err := prepareUntarSourceDirectory(100, destDir, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	changes, err := ChangesDirs(destDir, srcDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got := ChangesSize(destDir, changes)
-	if got != int64(creationSize) {
-		t.Errorf("Expected %d bytes of changes, got %d", creationSize, got)
 	}
 }
 
@@ -538,7 +468,7 @@ func TestChangesSize(t *testing.T) {
 	}
 	size := ChangesSize(parentPath, changes)
 	if size != 6 {
-		t.Fatalf("Expected 6 bytes of changes, got %d", size)
+		t.Fatalf("ChangesSizes with only delete changes should be 0, was %d", size)
 	}
 }
 

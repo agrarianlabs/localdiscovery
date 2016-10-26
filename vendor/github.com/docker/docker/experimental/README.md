@@ -1,4 +1,4 @@
-# Docker Experimental Features
+# Docker Experimental Features 
 
 This page contains a list of features in the Docker engine which are
 experimental. Experimental features are **not** ready for production. They are
@@ -11,23 +11,20 @@ please feel free to provide any feedback on these features you wish.
 
 ## Install Docker experimental
 
-Unlike the regular Docker binary, the experimental channels is built and
-updated nightly on https://experimental.docker.com. From one day to the
-next, new features may appear, while existing experimental features may be
-refined or entirely removed.
+Unlike the regular Docker binary, the experimental channels is built and updated nightly on TO.BE.ANNOUNCED. From one day to the next, new features may appear, while existing experimental features may be refined or entirely removed.
 
-1. Verify that you have `curl` installed.
+1. Verify that you have `wget` installed.
 
-        $ which curl
+        $ which wget
 
-    If `curl` isn't installed, install it after updating your manager:
+    If `wget` isn't installed, install it after updating your manager:
 
         $ sudo apt-get update
-        $ sudo apt-get install curl
+        $ sudo apt-get install wget
 
 2. Get the latest Docker package.
 
-        $ curl -sSL https://experimental.docker.com/ | sh
+        $ wget -qO- https://experimental.docker.com/ | sh
 
     The system prompts you for your `sudo` password. Then, it downloads and
     installs Docker and its dependencies.
@@ -37,7 +34,7 @@ refined or entirely removed.
 	>command fails for the Docker repo during installation. To work around this,
 	>add the key directly using the following:
 	>
-	>       $ curl -sSL https://experimental.docker.com/gpg | sudo apt-key add -
+	>       $ wget -qO- https://experimental.docker.com/gpg | sudo apt-key add -
 
 3. Verify `docker` is installed correctly.
 
@@ -49,9 +46,9 @@ refined or entirely removed.
 To download the latest experimental `docker` binary for Linux,
 use the following URLs:
 
-    https://experimental.docker.com/builds/Linux/i386/docker-latest.tgz
+    https://experimental.docker.com/builds/Linux/i386/docker-latest
 
-    https://experimental.docker.com/builds/Linux/x86_64/docker-latest.tgz
+    https://experimental.docker.com/builds/Linux/x86_64/docker-latest
 
 After downloading the appropriate binary, you can follow the instructions
 [here](https://docs.docker.com/installation/binaries/#get-the-docker-binary) to run the `docker` daemon.
@@ -62,18 +59,13 @@ After downloading the appropriate binary, you can follow the instructions
 >
 > 2) You can get the compressed binaries by appending .tgz to the URLs
 
-### Build an experimental binary
-You can also build the experimental binary from the standard development environment by adding
-`DOCKER_EXPERIMENTAL=1` to the environment where you run `make` to build Docker binaries. For example,
-to build a Docker binary with the experimental features enabled:
-
-        $ DOCKER_EXPERIMENTAL=1 make binary
-
 ## Current experimental features
 
- * [External graphdriver plugins](plugins_graphdriver.md)
- * [Macvlan and Ipvlan Network Drivers](vlan-networks.md)
- * [Docker Stacks and Distributed Application Bundles](docker-stacks-and-bundles.md)
+* [Support for Docker plugins](plugins.md)
+* [Volume plugins](plugins_volume.md)
+* [Network plugins](plugins_network.md)
+* [Native Multi-host networking](networking.md)
+* [Compose, Swarm and networking integration](compose_swarm_networking.md)
 
 ## How to comment on an experimental feature
 

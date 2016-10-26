@@ -3,9 +3,8 @@
 package zfs
 
 import (
-	"testing"
-
 	"github.com/docker/docker/daemon/graphdriver/graphtest"
+	"testing"
 )
 
 // This avoids creating a new driver for each test if all tests are run
@@ -24,10 +23,6 @@ func TestZfsCreateBase(t *testing.T) {
 
 func TestZfsCreateSnap(t *testing.T) {
 	graphtest.DriverTestCreateSnap(t, "zfs")
-}
-
-func TestZfsSetQuota(t *testing.T) {
-	graphtest.DriverTestSetQuota(t, "zfs")
 }
 
 func TestZfsTeardown(t *testing.T) {

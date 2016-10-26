@@ -1,76 +1,42 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	"github.com/docker/docker/utils"
 	"github.com/go-check/check"
 )
 
-type testCondition func() bool
+type TestCondition func() bool
 
-type testRequirement struct {
-	Condition   testCondition
+type TestRequirement struct {
+	Condition   TestCondition
 	SkipMessage string
 }
 
 // List test requirements
 var (
-	DaemonIsWindows = testRequirement{
-		func() bool { return daemonPlatform == "windows" },
-		"Test requires a Windows daemon",
-	}
-	DaemonIsLinux = testRequirement{
-		func() bool { return daemonPlatform == "linux" },
-		"Test requires a Linux daemon",
-	}
-	ExperimentalDaemon = testRequirement{
-		func() bool { return utils.ExperimentalBuild() },
-		"Test requires an experimental daemon",
-	}
-	NotExperimentalDaemon = testRequirement{
-		func() bool { return !utils.ExperimentalBuild() },
-		"Test requires a non experimental daemon",
-	}
-	IsAmd64 = testRequirement{
-		func() bool { return os.Getenv("DOCKER_ENGINE_GOARCH") == "amd64" },
-		"Test requires a daemon running on amd64",
-	}
-	NotArm = testRequirement{
-		func() bool { return os.Getenv("DOCKER_ENGINE_GOARCH") != "arm" },
-		"Test requires a daemon not running on ARM",
-	}
-	NotArm64 = testRequirement{
-		func() bool { return os.Getenv("DOCKER_ENGINE_GOARCH") != "arm64" },
-		"Test requires a daemon not running on arm64",
-	}
-	NotPpc64le = testRequirement{
-		func() bool { return os.Getenv("DOCKER_ENGINE_GOARCH") != "ppc64le" },
-		"Test requires a daemon not running on ppc64le",
-	}
-	NotS390X = testRequirement{
-		func() bool { return os.Getenv("DOCKER_ENGINE_GOARCH") != "s390x" },
-		"Test requires a daemon not running on s390x",
-	}
-	SameHostDaemon = testRequirement{
+	daemonExecDriver string
+
+	SameHostDaemon = TestRequirement{
 		func() bool { return isLocalDaemon },
-		"Test requires docker daemon to run on the same machine as CLI",
+		"Test requires docker daemon to runs on the same machine as CLI",
 	}
-	UnixCli = testRequirement{
+	UnixCli = TestRequirement{
 		func() bool { return isUnixCli },
 		"Test requires posix utilities or functionality to run.",
 	}
-	ExecSupport = testRequirement{
+	ExecSupport = TestRequirement{
 		func() bool { return supportsExec },
 		"Test requires 'docker exec' capabilities on the tested daemon.",
 	}
-	Network = testRequirement{
+	Network = TestRequirement{
 		func() bool {
 			// Set a timeout on the GET at 15s
 			var timeout = time.Duration(15 * time.Second)
@@ -91,14 +57,14 @@ var (
 		},
 		"Test requires network availability, environment variable set to none to run in a non-network enabled mode.",
 	}
-	Apparmor = testRequirement{
+	Apparmor = TestRequirement{
 		func() bool {
 			buf, err := ioutil.ReadFile("/sys/module/apparmor/parameters/enabled")
 			return err == nil && len(buf) > 1 && buf[0] == 'Y'
 		},
 		"Test requires apparmor is enabled.",
 	}
-	RegistryHosting = testRequirement{
+	RegistryHosting = TestRequirement{
 		func() bool {
 			// for now registry binary is built only if we're running inside
 			// container through `make test`. Figure that out by testing if
@@ -108,41 +74,41 @@ var (
 		},
 		fmt.Sprintf("Test requires an environment that can host %s in the same host", v2binary),
 	}
-	NotaryHosting = testRequirement{
+	NativeExecDriver = TestRequirement{
 		func() bool {
-			// for now notary binary is built only if we're running inside
-			// container through `make test`. Figure that out by testing if
-			// notary-server binary is in PATH.
-			_, err := exec.LookPath(notaryServerBinary)
-			return err == nil
+			if daemonExecDriver == "" {
+				// get daemon info
+				status, body, err := sockRequest("GET", "/info", nil)
+				if err != nil || status != http.StatusOK {
+					log.Fatalf("sockRequest failed for /info: %v", err)
+				}
+
+				type infoJSON struct {
+					ExecutionDriver string
+				}
+				var info infoJSON
+				if err = json.Unmarshal(body, &info); err != nil {
+					log.Fatalf("unable to unmarshal body: %v", err)
+				}
+
+				daemonExecDriver = info.ExecutionDriver
+			}
+
+			return strings.HasPrefix(daemonExecDriver, "native")
 		},
-		fmt.Sprintf("Test requires an environment that can host %s in the same host", notaryServerBinary),
+		"Test requires the native (libcontainer) exec driver.",
 	}
-	NotaryServerHosting = testRequirement{
+	NotOverlay = TestRequirement{
 		func() bool {
-			// for now notary-server binary is built only if we're running inside
-			// container through `make test`. Figure that out by testing if
-			// notary-server binary is in PATH.
-			_, err := exec.LookPath(notaryServerBinary)
-			return err == nil
-		},
-		fmt.Sprintf("Test requires an environment that can host %s in the same host", notaryServerBinary),
-	}
-	NotOverlay = testRequirement{
-		func() bool {
-			return !strings.HasPrefix(daemonStorageDriver, "overlay")
+			cmd := exec.Command("grep", "^overlay / overlay", "/proc/mounts")
+			if err := cmd.Run(); err != nil {
+				return true
+			}
+			return false
 		},
 		"Test requires underlying root filesystem not be backed by overlay.",
 	}
-
-	Devicemapper = testRequirement{
-		func() bool {
-			return strings.HasPrefix(daemonStorageDriver, "devicemapper")
-		},
-		"Test requires underlying root filesystem to be backed by devicemapper.",
-	}
-
-	IPv6 = testRequirement{
+	IPv6 = TestRequirement{
 		func() bool {
 			cmd := exec.Command("test", "-f", "/proc/net/if_inet6")
 
@@ -153,55 +119,11 @@ var (
 		},
 		"Test requires support for IPv6",
 	}
-	NotGCCGO = testRequirement{
-		func() bool {
-			out, err := exec.Command("go", "version").Output()
-			if err == nil && strings.Contains(string(out), "gccgo") {
-				return false
-			}
-			return true
-		},
-		"Test requires native Golang compiler instead of GCCGO",
-	}
-	UserNamespaceInKernel = testRequirement{
-		func() bool {
-			if _, err := os.Stat("/proc/self/uid_map"); os.IsNotExist(err) {
-				/*
-				 * This kernel-provided file only exists if user namespaces are
-				 * supported
-				 */
-				return false
-			}
-
-			// We need extra check on redhat based distributions
-			if f, err := os.Open("/sys/module/user_namespace/parameters/enable"); err == nil {
-				b := make([]byte, 1)
-				_, _ = f.Read(b)
-				if string(b) == "N" {
-					return false
-				}
-				return true
-			}
-
-			return true
-		},
-		"Kernel must have user namespaces configured and enabled.",
-	}
-	NotUserNamespace = testRequirement{
-		func() bool {
-			root := os.Getenv("DOCKER_REMAP_ROOT")
-			if root != "" {
-				return false
-			}
-			return true
-		},
-		"Test cannot be run when remapping root",
-	}
 )
 
 // testRequires checks if the environment satisfies the requirements
 // for the test to run or skips the tests.
-func testRequires(c *check.C, requirements ...testRequirement) {
+func testRequires(c *check.C, requirements ...TestRequirement) {
 	for _, r := range requirements {
 		if !r.Condition() {
 			c.Skip(r.SkipMessage)
