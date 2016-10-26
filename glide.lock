@@ -1,30 +1,32 @@
-hash: b9eb64bdc4910f32e65d155e79ed8ecb2de2a300ddac2c65f1f0a42aa5b37e8f
-updated: 2016-10-26T12:00:35.458584-05:00
+hash: 535b21ed5dd5c1ff5b673eaa3f9b2732cab97d97d9579377db4c113331b66714
+updated: 2016-10-26T13:35:27.323414553-05:00
 imports:
 - name: github.com/creack/ehttp
   version: 8fb4dc85d935d3bfadcf517eeb3c8828bc8fe8b5
 - name: github.com/docker/docker
-  version: 2684459ed433125257ffde5e95666ff785f26ec2
+  version: 0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d
   subpackages:
   - opts
   - pkg/archive
   - pkg/fileutils
   - pkg/homedir
-  - pkg/idtools
   - pkg/ioutils
+  - pkg/mflag
+  - pkg/parsers
   - pkg/pools
   - pkg/promise
   - pkg/stdcopy
   - pkg/system
+  - pkg/ulimit
+  - pkg/units
+  - volume
 - name: github.com/docker/engine-api
-  version: fa0eea948c32ababd784fc1ad76172d986617e56
+  version: 4290f40c056686fcaa5c9caf02eac1dde9315adf
   subpackages:
-  - types/filters
   - types/mount
   - types/swarm
-  - types/versions
 - name: github.com/docker/go-units
-  version: eb879ae3e2b84e2a142af415b679ddeda47ec71c
+  version: 8a7beacffa3009a9ac66bad506b18ffdd110cf97
 - name: github.com/fsouza/go-dockerclient
   version: 2ce05b8e04b7475b63ae21c1aeaf72b8a5b05eb5
 - name: github.com/go-fsnotify/fsnotify
@@ -32,18 +34,18 @@ imports:
 - name: github.com/hashicorp/go-cleanhttp
   version: ad28ea4487f05916463e2423a55166280e8254b5
 - name: github.com/opencontainers/runc
-  version: 142df3836b740af53dc6da59eed8dbc92f62917c
+  version: 4599e7074eccfac90013dc38c32b3c812c5d8b70
   subpackages:
   - libcontainer/user
 - name: github.com/Sirupsen/logrus
   version: 4b6ea7319e214d98c938f12692336f7ca9348d6b
 - name: golang.org/x/net
-  version: 075e191f18186a8ff2becaf64478e30f4545cdad
+  version: 65dfc08770ce66f74becfdff5f8ab01caef4e946
   subpackages:
   - context
   - context/ctxhttp
 - name: golang.org/x/sys
-  version: 002cbb5f952456d0c50e0d2aff17ea5eca716979
+  version: c200b10b5d5e122be351b67af224adc6128af5bf
   subpackages:
   - unix
 testImports: []
