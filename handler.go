@@ -5,13 +5,8 @@ import (
 	"net/http"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/agrarianlabs/localdiscovery/discoverclient"
 )
-
-// LookupRequest is the data send via POST for the Lookup Handler.
-type LookupRequest struct {
-	HostInfo
-	Port string
-}
 
 // LookupHandler looks up the exposed port for a given container on the host.
 // Method: POST
@@ -24,16 +19,16 @@ type LookupRequest struct {
 // Response:
 //   - port        (int): first exposed port public value. 0 means not exposed.
 func (d *DockerDiscovery) LookupHandler(w http.ResponseWriter, req *http.Request) error {
-	lookupReq := LookupRequest{}
+	lookupReq := discoverclient.LookupRequest{}
 	err := json.NewDecoder(req.Body).Decode(&lookupReq)
 	_ = req.Body.Close() // best effort.
 	if err != nil {
 		return err
 	}
-	port, err := d.LookupPort(lookupReq.Hostname, lookupReq.IP, lookupReq.MacAddress, lookupReq.Port)
+	port, err := d.LookupPort(req.RemoteAddr, lookupReq.Port)
 	if err != nil {
 		return err
 	}
-	logrus.Printf("Lookup result for %s:%s is %d", lookupReq.Hostname, lookupReq.Port, port)
+	logrus.Printf("Lookup result for %s:%s is %d", req.RemoteAddr, lookupReq.Port, port)
 	return json.NewEncoder(w).Encode(port)
 }
