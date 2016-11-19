@@ -1,6 +1,6 @@
 FROM       golang:1.7
 
-RUN        go get github.com/golang/lint/golint golang.org/x/tools/cmd/goimports && curl -s https://glide.sh/get | sh
+RUN        go get github.com/golang/lint/golint golang.org/x/tools/cmd/goimports
 
 ENV        CGO_ENABLED 0
 RUN        go install -a std
