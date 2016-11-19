@@ -3,6 +3,7 @@ package localdiscovery
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/agrarianlabs/localdiscovery/discoverclient"
@@ -25,7 +26,7 @@ func (d *DockerDiscovery) LookupHandler(w http.ResponseWriter, req *http.Request
 	if err != nil {
 		return err
 	}
-	port, err := d.LookupPort(req.RemoteAddr, lookupReq.Port)
+	port, err := d.LookupPort(strings.Split(req.RemoteAddr, ":")[0], lookupReq.Port)
 	if err != nil {
 		return err
 	}
