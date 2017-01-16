@@ -1,4 +1,4 @@
-// Copyright 2015 go-dockerclient authors. All rights reserved.
+// Copyright 2013 go-dockerclient authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,8 +33,8 @@ func TestNewAPIClient(t *testing.T) {
 	if client.endpoint != endpoint {
 		t.Errorf("Expected endpoint %s. Got %s.", endpoint, client.endpoint)
 	}
-	// test unix socket endpoints
-	endpoint = "unix:///var/run/docker.sock"
+	// test native endpoints
+	endpoint = nativeRealEndpoint
 	client, err = NewClient(endpoint)
 	if err != nil {
 		t.Fatal(err)
@@ -160,6 +159,26 @@ func TestNewTLSVersionedClient(t *testing.T) {
 	}
 }
 
+func TestNewTLSVersionedClientNoClientCert(t *testing.T) {
+	certPath := "testing/data/cert_doesnotexist.pem"
+	keyPath := "testing/data/key_doesnotexist.pem"
+	caPath := "testing/data/ca.pem"
+	endpoint := "https://localhost:4243"
+	client, err := NewVersionedTLSClient(endpoint, certPath, keyPath, caPath, "1.14")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.endpoint != endpoint {
+		t.Errorf("Expected endpoint %s. Got %s.", endpoint, client.endpoint)
+	}
+	if reqVersion := client.requestedAPIVersion.String(); reqVersion != "1.14" {
+		t.Errorf("Wrong requestAPIVersion. Want %q. Got %q.", "1.14", reqVersion)
+	}
+	if client.SkipServerVersionCheck {
+		t.Error("Expected SkipServerVersionCheck to be false, got true")
+	}
+}
+
 func TestNewTLSVersionedClientInvalidCA(t *testing.T) {
 	certPath := "testing/data/cert.pem"
 	keyPath := "testing/data/key.pem"
@@ -171,34 +190,14 @@ func TestNewTLSVersionedClientInvalidCA(t *testing.T) {
 	}
 }
 
-func TestNewTSLAPIClientUnixEndpoint(t *testing.T) {
-	srv, cleanup, err := newUnixServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-	srv.Start()
-	defer srv.Close()
-	endpoint := "unix://" + srv.Listener.Addr().String()
-	client, err := newTLSClient(endpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if client.endpoint != endpoint {
-		t.Errorf("Expected endpoint %s. Got %s.", endpoint, client.endpoint)
-	}
-	rsp, err := client.do("GET", "/", doOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := ioutil.ReadAll(rsp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != "ok" {
-		t.Fatalf("Expected response to be %q, got: %q", "ok", string(data))
+func TestNewTLSVersionedClientInvalidCANoClientCert(t *testing.T) {
+	certPath := "testing/data/cert_doesnotexist.pem"
+	keyPath := "testing/data/key_doesnotexist.pem"
+	caPath := "testing/data/key.pem"
+	endpoint := "https://localhost:4243"
+	_, err := NewVersionedTLSClient(endpoint, certPath, keyPath, caPath, "1.14")
+	if err == nil {
+		t.Errorf("Expected invalid ca at %s", caPath)
 	}
 }
 
@@ -275,7 +274,7 @@ func TestGetURL(t *testing.T) {
 		{"http://localhost:4243", "/containers/ps", "http://localhost:4243/containers/ps"},
 		{"tcp://localhost:4243", "/containers/ps", "http://localhost:4243/containers/ps"},
 		{"http://localhost:4243/////", "/", "http://localhost:4243/"},
-		{"unix:///var/run/docker.socket", "/containers", "/containers"},
+		{nativeRealEndpoint, "/containers", "/containers"},
 	}
 	for _, tt := range tests {
 		client, _ := NewClient(tt.endpoint)
@@ -288,21 +287,21 @@ func TestGetURL(t *testing.T) {
 	}
 }
 
-func TestGetFakeUnixURL(t *testing.T) {
+func TestGetFakeNativeURL(t *testing.T) {
 	var tests = []struct {
 		endpoint string
 		path     string
 		expected string
 	}{
-		{"unix://var/run/docker.sock", "/", "http://unix.sock/"},
-		{"unix://var/run/docker.socket", "/", "http://unix.sock/"},
-		{"unix://var/run/docker.sock", "/containers/ps", "http://unix.sock/containers/ps"},
+		{nativeRealEndpoint, "/", "http://unix.sock/"},
+		{nativeRealEndpoint, "/", "http://unix.sock/"},
+		{nativeRealEndpoint, "/containers/ps", "http://unix.sock/containers/ps"},
 	}
 	for _, tt := range tests {
 		client, _ := NewClient(tt.endpoint)
 		client.endpoint = tt.endpoint
 		client.SkipServerVersionCheck = true
-		got := client.getFakeUnixURL(tt.path)
+		got := client.getFakeNativeURL(tt.path)
 		if got != tt.expected {
 			t.Errorf("getURL(%q): Got %s. Want %s.", tt.path, got, tt.expected)
 		}
@@ -439,8 +438,8 @@ func TestPingFailingWrongStatus(t *testing.T) {
 	}
 }
 
-func TestPingErrorWithUnixSocket(t *testing.T) {
-	srv, cleanup, err := newUnixServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestPingErrorWithNativeClient(t *testing.T) {
+	srv, cleanup, err := newNativeServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("aaaaaaaaaaa-invalid-aaaaaaaaaaa"))
 	}))
 	if err != nil {
@@ -449,7 +448,7 @@ func TestPingErrorWithUnixSocket(t *testing.T) {
 	defer cleanup()
 	srv.Start()
 	defer srv.Close()
-	endpoint := "unix:///tmp/echo.sock"
+	endpoint := nativeBadEndpoint
 	client, err := NewClient(endpoint)
 	if err != nil {
 		t.Fatal(err)
@@ -591,6 +590,117 @@ func TestClientStreamContextCancel(t *testing.T) {
 	}
 }
 
+var mockPullOutput = `{"status":"Pulling from tsuru/static","id":"latest"}
+{"status":"Already exists","progressDetail":{},"id":"a6aa3b66376f"}
+{"status":"Pulling fs layer","progressDetail":{},"id":"106572778bf7"}
+{"status":"Pulling fs layer","progressDetail":{},"id":"bac681833e51"}
+{"status":"Pulling fs layer","progressDetail":{},"id":"7302e23ef08a"}
+{"status":"Downloading","progressDetail":{"current":621,"total":621},"progress":"[==================================================\u003e]    621 B/621 B","id":"bac681833e51"}
+{"status":"Verifying Checksum","progressDetail":{},"id":"bac681833e51"}
+{"status":"Download complete","progressDetail":{},"id":"bac681833e51"}
+{"status":"Downloading","progressDetail":{"current":1854,"total":1854},"progress":"[==================================================\u003e] 1.854 kB/1.854 kB","id":"106572778bf7"}
+{"status":"Verifying Checksum","progressDetail":{},"id":"106572778bf7"}
+{"status":"Download complete","progressDetail":{},"id":"106572778bf7"}
+{"status":"Extracting","progressDetail":{"current":1854,"total":1854},"progress":"[==================================================\u003e] 1.854 kB/1.854 kB","id":"106572778bf7"}
+{"status":"Extracting","progressDetail":{"current":1854,"total":1854},"progress":"[==================================================\u003e] 1.854 kB/1.854 kB","id":"106572778bf7"}
+{"status":"Downloading","progressDetail":{"current":233019,"total":21059403},"progress":"[\u003e                                                  ]   233 kB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Downloading","progressDetail":{"current":462395,"total":21059403},"progress":"[=\u003e                                                 ] 462.4 kB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Downloading","progressDetail":{"current":8490555,"total":21059403},"progress":"[====================\u003e                              ] 8.491 MB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Downloading","progressDetail":{"current":20876859,"total":21059403},"progress":"[=================================================\u003e ] 20.88 MB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Verifying Checksum","progressDetail":{},"id":"7302e23ef08a"}
+{"status":"Download complete","progressDetail":{},"id":"7302e23ef08a"}
+{"status":"Pull complete","progressDetail":{},"id":"106572778bf7"}
+{"status":"Extracting","progressDetail":{"current":621,"total":621},"progress":"[==================================================\u003e]    621 B/621 B","id":"bac681833e51"}
+{"status":"Extracting","progressDetail":{"current":621,"total":621},"progress":"[==================================================\u003e]    621 B/621 B","id":"bac681833e51"}
+{"status":"Pull complete","progressDetail":{},"id":"bac681833e51"}
+{"status":"Extracting","progressDetail":{"current":229376,"total":21059403},"progress":"[\u003e                                                  ] 229.4 kB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Extracting","progressDetail":{"current":458752,"total":21059403},"progress":"[=\u003e                                                 ] 458.8 kB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Extracting","progressDetail":{"current":11239424,"total":21059403},"progress":"[==========================\u003e                        ] 11.24 MB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Extracting","progressDetail":{"current":21059403,"total":21059403},"progress":"[==================================================\u003e] 21.06 MB/21.06 MB","id":"7302e23ef08a"}
+{"status":"Pull complete","progressDetail":{},"id":"7302e23ef08a"}
+{"status":"Digest: sha256:b754472891aa7e33fc0214e3efa988174f2c2289285fcae868b7ec8b6675fc77"}
+{"status":"Status: Downloaded newer image for 192.168.50.4:5000/tsuru/static"}
+`
+
+func TestClientStreamJSONDecode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(mockPullOutput))
+	}))
+	client, err := NewClient(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var w bytes.Buffer
+	err = client.stream("POST", "/image/create", streamOptions{
+		stdout:         &w,
+		useJSONDecoder: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `latest: Pulling from tsuru/static
+a6aa3b66376f: Already exists
+106572778bf7: Pulling fs layer
+bac681833e51: Pulling fs layer
+7302e23ef08a: Pulling fs layer
+bac681833e51: Verifying Checksum
+bac681833e51: Download complete
+106572778bf7: Verifying Checksum
+106572778bf7: Download complete
+7302e23ef08a: Verifying Checksum
+7302e23ef08a: Download complete
+106572778bf7: Pull complete
+bac681833e51: Pull complete
+7302e23ef08a: Pull complete
+Digest: sha256:b754472891aa7e33fc0214e3efa988174f2c2289285fcae868b7ec8b6675fc77
+Status: Downloaded newer image for 192.168.50.4:5000/tsuru/static
+`
+	result := w.String()
+	if result != expected {
+		t.Fatalf("expected stream result %q, got: %q", expected, result)
+	}
+}
+
+type terminalBuffer struct {
+	bytes.Buffer
+}
+
+func (b *terminalBuffer) FD() uintptr {
+	return os.Stdout.Fd()
+}
+
+func (b *terminalBuffer) IsTerminal() bool {
+	return true
+}
+
+func TestClientStreamJSONDecodeWithTerminal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(mockPullOutput))
+	}))
+	client, err := NewClient(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var w terminalBuffer
+	err = client.stream("POST", "/image/create", streamOptions{
+		stdout:         &w,
+		useJSONDecoder: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := "latest: Pulling from tsuru/static\n\n" +
+		"\x1b[1A\x1b[2K\ra6aa3b66376f: Already exists \r\x1b[1B\n" +
+		"\x1b[1A\x1b[2K\r106572778bf7: Pulling fs layer \r\x1b[1B\n" +
+		"\x1b[1A\x1b[2K\rbac681833e51: Pulling fs layer \r\x1b[1B\n" +
+		"\x1b[1A\x1b[2K\r7302e23ef08a: Pulling fs layer \r\x1b[1B\x1b[2A\x1b[2K\rbac681833e51: Downloading [==================================================>]    621 B/621 B\r\x1b[2B\x1b[2A\x1b[2K\rbac681833e51: Verifying Checksum \r\x1b[2B\x1b[2A\x1b[2K\rbac681833e51: Download complete \r\x1b[2B\x1b[3A\x1b[2K\r106572778bf7: Downloading [==================================================>] 1.854 kB/1.854 kB\r\x1b[3B\x1b[3A\x1b[2K\r106572778bf7: Verifying Checksum \r\x1b[3B\x1b[3A\x1b[2K\r106572778bf7: Download complete \r\x1b[3B\x1b[3A\x1b[2K\r106572778bf7: Extracting [==================================================>] 1.854 kB/1.854 kB\r\x1b[3B\x1b[3A\x1b[2K\r106572778bf7: Extracting [==================================================>] 1.854 kB/1.854 kB\r\x1b[3B\x1b[1A\x1b[2K\r7302e23ef08a: Downloading [>                                                  ]   233 kB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Downloading [=>                                                 ] 462.4 kB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Downloading [====================>                              ] 8.491 MB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Downloading [=================================================> ] 20.88 MB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Verifying Checksum \r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Download complete \r\x1b[1B\x1b[3A\x1b[2K\r106572778bf7: Pull complete \r\x1b[3B\x1b[2A\x1b[2K\rbac681833e51: Extracting [==================================================>]    621 B/621 B\r\x1b[2B\x1b[2A\x1b[2K\rbac681833e51: Extracting [==================================================>]    621 B/621 B\r\x1b[2B\x1b[2A\x1b[2K\rbac681833e51: Pull complete \r\x1b[2B\x1b[1A\x1b[2K\r7302e23ef08a: Extracting [>                                                  ] 229.4 kB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Extracting [=>                                                 ] 458.8 kB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Extracting [==========================>                        ] 11.24 MB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Extracting [==================================================>] 21.06 MB/21.06 MB\r\x1b[1B\x1b[1A\x1b[2K\r7302e23ef08a: Pull complete \r\x1b[1BDigest: sha256:b754472891aa7e33fc0214e3efa988174f2c2289285fcae868b7ec8b6675fc77\n" +
+		"Status: Downloaded newer image for 192.168.50.4:5000/tsuru/static\n"
+	result := w.String()
+	if result != expected {
+		t.Fatalf("expected stream result %q, got: %q", expected, result)
+	}
+}
+
 func TestClientDoContextDeadline(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(500 * time.Millisecond)
@@ -630,8 +740,8 @@ func TestClientDoContextCancel(t *testing.T) {
 	}
 }
 
-func TestClientStreamTimeoutUnixSocket(t *testing.T) {
-	srv, cleanup, err := newUnixServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestClientStreamTimeoutNativeClient(t *testing.T) {
+	srv, cleanup, err := newNativeServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for i := 0; i < 5; i++ {
 			fmt.Fprintf(w, "%d\n", i)
 			if f, ok := w.(http.Flusher); ok {
@@ -646,7 +756,7 @@ func TestClientStreamTimeoutUnixSocket(t *testing.T) {
 	defer cleanup()
 	srv.Start()
 	defer srv.Close()
-	client, err := NewClient("unix://" + srv.Listener.Addr().String())
+	client, err := NewClient(nativeProtocol + "://" + srv.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,14 +784,14 @@ func TestClientDoConcurrentStress(t *testing.T) {
 		reqs = append(reqs, r)
 		mu.Unlock()
 	})
-	var unixSrvs []*httptest.Server
+	var nativeSrvs []*httptest.Server
 	for i := 0; i < 3; i++ {
-		srv, cleanup, err := newUnixServer(handler)
+		srv, cleanup, err := newNativeServer(handler)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer cleanup()
-		unixSrvs = append(unixSrvs, srv)
+		nativeSrvs = append(nativeSrvs, srv)
 	}
 	var tests = []struct {
 		srv           *httptest.Server
@@ -691,11 +801,11 @@ func TestClientDoConcurrentStress(t *testing.T) {
 		withTLSClient bool
 	}{
 		{srv: httptest.NewUnstartedServer(handler), scheme: "http"},
-		{srv: unixSrvs[0], scheme: "unix"},
+		{srv: nativeSrvs[0], scheme: nativeProtocol},
 		{srv: httptest.NewUnstartedServer(handler), scheme: "http", withTimeout: true},
-		{srv: unixSrvs[1], scheme: "unix", withTimeout: true},
+		{srv: nativeSrvs[1], scheme: nativeProtocol, withTimeout: true},
 		{srv: httptest.NewUnstartedServer(handler), scheme: "https", withTLSServer: true, withTLSClient: true},
-		{srv: unixSrvs[2], scheme: "unix", withTLSServer: false, withTLSClient: true},
+		{srv: nativeSrvs[2], scheme: nativeProtocol, withTLSServer: false, withTLSClient: nativeProtocol == unixProtocol}, // TLS client only works with unix protocol
 	}
 	for _, tt := range tests {
 		reqs = nil
@@ -778,21 +888,6 @@ func TestClientDoConcurrentStress(t *testing.T) {
 	}
 }
 
-func newUnixServer(handler http.Handler) (*httptest.Server, func(), error) {
-	tmpdir, err := ioutil.TempDir("", "socket")
-	if err != nil {
-		return nil, nil, err
-	}
-	socketPath := filepath.Join(tmpdir, "docker_test_stress.sock")
-	l, err := net.Listen("unix", socketPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	srv := httptest.NewUnstartedServer(handler)
-	srv.Listener = l
-	return srv, func() { os.RemoveAll(tmpdir) }, nil
-}
-
 type FakeRoundTripper struct {
 	message  string
 	status   int
@@ -831,8 +926,4 @@ type dumb struct {
 	Y      float64
 	Z      int     `qs:"zee"`
 	Person *person `qs:"p"`
-}
-
-type fakeEndpointURL struct {
-	Scheme string
 }

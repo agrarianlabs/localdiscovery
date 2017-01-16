@@ -1,30 +1,36 @@
-<!--[metadata]>
-+++
-title = "plugin install"
-description = "the plugin install command description and usage"
-keywords = ["plugin, install"]
-advisory = "experimental"
-[menu.main]
-parent = "smn_cli"
-+++
-<![end-metadata]-->
+---
+title: "plugin install"
+description: "the plugin install command description and usage"
+keywords: ["plugin, install"]
+advisory: "experimental"
+---
+
+<!-- This file is maintained within the docker/docker Github
+     repository at https://github.com/docker/docker/. Make all
+     pull requests against that repo. If you see this file in
+     another repository, consider it read-only there, as it will
+     periodically be overwritten by the definitive file. Pull
+     requests which include edits to this file in other repositories
+     will be rejected.
+-->
 
 # plugin install (experimental)
 
 ```markdown
-Usage:  docker plugin install PLUGIN [OPTIONS]
+Usage:  docker plugin install [OPTIONS] PLUGIN
 
 Install a plugin
 
 Options:
-      --disable                 do not enable the plugin on install
-      --grant-all-permissions   grant all permissions necessary to run the plugin
+      --disable                 Do not enable the plugin on install
+      --grant-all-permissions   Grant all permissions necessary to run the plugin
       --help                    Print usage
 ```
 
 Installs and enables a plugin. Docker looks first for the plugin on your Docker
 host. If the plugin does not exist locally, then the plugin is pulled from
-Docker Hub.
+the registry. Note that the minimum required registry version to distribute
+plugins is 2.3.0
 
 
 The following example installs `no-remove` plugin. Install consists of pulling the
@@ -33,18 +39,22 @@ the plugin needs and enabling the plugin.
 
 ```bash
 $ docker plugin install tiborvass/no-remove
-Plugin "tiborvass/no-remove:latest" requested the following privileges:
- - Networking: host
- - Mounting host path: /data
+
+Plugin "tiborvass/no-remove" is requesting the following privileges:
+ - network: [host]
+ - mount: [/data]
+ - device: [/dev/cpu_dma_latency]
 Do you grant the above permissions? [y/N] y
+tiborvass/no-remove
 ```
 
 After the plugin is installed, it appears in the list of plugins:
 
 ```bash
 $ docker plugin ls
-NAME                	VERSION             ACTIVE
-tiborvass/no-remove   latest              true
+
+NAME                  TAG                 DESCRIPTION                ENABLED
+tiborvass/no-remove   latest              A test plugin for Docker   true
 ```
 
 ## Related information

@@ -41,9 +41,14 @@ type plugins struct {
 	plugins map[string]*Plugin
 }
 
+type extpointHandlers struct {
+	sync.RWMutex
+	extpointHandlers map[string][]func(string, *Client)
+}
+
 var (
-	storage          = plugins{plugins: make(map[string]*Plugin)}
-	extpointHandlers = make(map[string]func(string, *Client))
+	storage  = plugins{plugins: make(map[string]*Plugin)}
+	handlers = extpointHandlers{extpointHandlers: make(map[string][]func(string, *Client))}
 )
 
 // Manifest lists what a plugin implements.
@@ -81,6 +86,11 @@ func (p *Plugin) Name() string {
 // Client returns a ready-to-use plugin client that can be used to communicate with the plugin.
 func (p *Plugin) Client() *Client {
 	return p.client
+}
+
+// IsV1 returns true for V1 plugins and false otherwise.
+func (p *Plugin) IsV1() bool {
+	return true
 }
 
 // NewLocalPlugin creates a new local plugin.
@@ -123,13 +133,17 @@ func (p *Plugin) activateWithLock() error {
 
 	p.Manifest = m
 
+	handlers.RLock()
 	for _, iface := range m.Implements {
-		handler, handled := extpointHandlers[iface]
+		hdlrs, handled := handlers.extpointHandlers[iface]
 		if !handled {
 			continue
 		}
-		handler(p.name, p.client)
+		for _, handler := range hdlrs {
+			handler(p.name, p.client)
+		}
 	}
+	handlers.RUnlock()
 	return nil
 }
 
@@ -221,7 +235,18 @@ func Get(name, imp string) (*Plugin, error) {
 
 // Handle adds the specified function to the extpointHandlers.
 func Handle(iface string, fn func(string, *Client)) {
-	extpointHandlers[iface] = fn
+	handlers.Lock()
+	hdlrs, ok := handlers.extpointHandlers[iface]
+	if !ok {
+		hdlrs = []func(string, *Client){}
+	}
+
+	hdlrs = append(hdlrs, fn)
+	handlers.extpointHandlers[iface] = hdlrs
+	for _, p := range storage.plugins {
+		p.activated = false
+	}
+	handlers.Unlock()
 }
 
 // GetAll returns all the plugins for the specified implementation

@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"strings"
 
+	registrytypes "github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/opts"
-	flag "github.com/docker/docker/pkg/mflag"
 	"github.com/docker/docker/reference"
-	registrytypes "github.com/docker/engine-api/types/registry"
+	"github.com/spf13/pflag"
 )
 
 // ServiceOptions holds command line options.
@@ -70,25 +70,18 @@ var lookupIP = net.LookupIP
 
 // InstallCliFlags adds command-line options to the top-level flag parser for
 // the current process.
-func (options *ServiceOptions) InstallCliFlags(cmd *flag.FlagSet, usageFn func(string) string) {
+func (options *ServiceOptions) InstallCliFlags(flags *pflag.FlagSet) {
 	mirrors := opts.NewNamedListOptsRef("registry-mirrors", &options.Mirrors, ValidateMirror)
-	cmd.Var(mirrors, []string{"-registry-mirror"}, usageFn("Preferred Docker registry mirror"))
-
 	insecureRegistries := opts.NewNamedListOptsRef("insecure-registries", &options.InsecureRegistries, ValidateIndexName)
-	cmd.Var(insecureRegistries, []string{"-insecure-registry"}, usageFn("Enable insecure registry communication"))
 
-	cmd.BoolVar(&options.V2Only, []string{"-disable-legacy-registry"}, false, usageFn("Do not contact legacy registries"))
+	flags.Var(mirrors, "registry-mirror", "Preferred Docker registry mirror")
+	flags.Var(insecureRegistries, "insecure-registry", "Enable insecure registry communication")
+
+	options.installCliPlatformFlags(flags)
 }
 
 // newServiceConfig returns a new instance of ServiceConfig
 func newServiceConfig(options ServiceOptions) *serviceConfig {
-	// Localhost is by default considered as an insecure registry
-	// This is a stop-gap for people who are running a private registry on localhost (especially on Boot2docker).
-	//
-	// TODO: should we deprecate this once it is easier for people to set up a TLS registry or change
-	// daemon flags on boot2docker?
-	options.InsecureRegistries = append(options.InsecureRegistries, "127.0.0.0/8")
-
 	config := &serviceConfig{
 		ServiceConfig: registrytypes.ServiceConfig{
 			InsecureRegistryCIDRs: make([]*registrytypes.NetIPNet, 0),
@@ -99,13 +92,51 @@ func newServiceConfig(options ServiceOptions) *serviceConfig {
 		},
 		V2Only: options.V2Only,
 	}
-	// Split --insecure-registry into CIDR and registry-specific settings.
-	for _, r := range options.InsecureRegistries {
+
+	config.LoadInsecureRegistries(options.InsecureRegistries)
+
+	return config
+}
+
+// LoadInsecureRegistries loads insecure registries to config
+func (config *serviceConfig) LoadInsecureRegistries(registries []string) error {
+	// Localhost is by default considered as an insecure registry
+	// This is a stop-gap for people who are running a private registry on localhost (especially on Boot2docker).
+	//
+	// TODO: should we deprecate this once it is easier for people to set up a TLS registry or change
+	// daemon flags on boot2docker?
+	registries = append(registries, "127.0.0.0/8")
+
+	// Store original InsecureRegistryCIDRs and IndexConfigs
+	// Clean InsecureRegistryCIDRs and IndexConfigs in config, as passed registries has all insecure registry info.
+	originalCIDRs := config.ServiceConfig.InsecureRegistryCIDRs
+	originalIndexInfos := config.ServiceConfig.IndexConfigs
+
+	config.ServiceConfig.InsecureRegistryCIDRs = make([]*registrytypes.NetIPNet, 0)
+	config.ServiceConfig.IndexConfigs = make(map[string]*registrytypes.IndexInfo, 0)
+
+skip:
+	for _, r := range registries {
+		// validate insecure registry
+		if _, err := ValidateIndexName(r); err != nil {
+			// before returning err, roll back to original data
+			config.ServiceConfig.InsecureRegistryCIDRs = originalCIDRs
+			config.ServiceConfig.IndexConfigs = originalIndexInfos
+			return err
+		}
 		// Check if CIDR was passed to --insecure-registry
 		_, ipnet, err := net.ParseCIDR(r)
 		if err == nil {
-			// Valid CIDR.
-			config.InsecureRegistryCIDRs = append(config.InsecureRegistryCIDRs, (*registrytypes.NetIPNet)(ipnet))
+			// Valid CIDR. If ipnet is already in config.InsecureRegistryCIDRs, skip.
+			data := (*registrytypes.NetIPNet)(ipnet)
+			for _, value := range config.InsecureRegistryCIDRs {
+				if value.IP.String() == data.IP.String() && value.Mask.String() == data.Mask.String() {
+					continue skip
+				}
+			}
+			// ipnet is not found, add it in config.InsecureRegistryCIDRs
+			config.InsecureRegistryCIDRs = append(config.InsecureRegistryCIDRs, data)
+
 		} else {
 			// Assume `host:port` if not CIDR.
 			config.IndexConfigs[r] = &registrytypes.IndexInfo{
@@ -125,7 +156,7 @@ func newServiceConfig(options ServiceOptions) *serviceConfig {
 		Official: true,
 	}
 
-	return config
+	return nil
 }
 
 // isSecureIndex returns false if the provided indexName is part of the list of insecure registries

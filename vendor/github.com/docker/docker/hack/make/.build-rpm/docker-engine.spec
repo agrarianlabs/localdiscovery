@@ -129,12 +129,12 @@ install -p -m 755 bundles/%{_origversion}/dynbinary-daemon/dockerd-%{_origversio
 install -p -m 755 bundles/%{_origversion}/dynbinary-daemon/docker-proxy-%{_origversion} $RPM_BUILD_ROOT/%{_bindir}/docker-proxy
 
 # install containerd
-install -p -m 755 /usr/local/bin/containerd $RPM_BUILD_ROOT/%{_bindir}/docker-containerd
-install -p -m 755 /usr/local/bin/containerd-shim $RPM_BUILD_ROOT/%{_bindir}/docker-containerd-shim
-install -p -m 755 /usr/local/bin/ctr $RPM_BUILD_ROOT/%{_bindir}/docker-containerd-ctr
+install -p -m 755 /usr/local/bin/docker-containerd $RPM_BUILD_ROOT/%{_bindir}/docker-containerd
+install -p -m 755 /usr/local/bin/docker-containerd-shim $RPM_BUILD_ROOT/%{_bindir}/docker-containerd-shim
+install -p -m 755 /usr/local/bin/docker-containerd-ctr $RPM_BUILD_ROOT/%{_bindir}/docker-containerd-ctr
 
 # install runc
-install -p -m 755 /usr/local/sbin/runc $RPM_BUILD_ROOT/%{_bindir}/docker-runc
+install -p -m 755 /usr/local/bin/docker-runc $RPM_BUILD_ROOT/%{_bindir}/docker-runc
 
 # install udev rules
 install -d $RPM_BUILD_ROOT/%{_sysconfdir}/udev/rules.d
@@ -147,8 +147,7 @@ install -d $RPM_BUILD_ROOT/%{_initddir}
 
 %if 0%{?is_systemd}
 install -d $RPM_BUILD_ROOT/%{_unitdir}
-install -p -m 644 contrib/init/systemd/docker.service $RPM_BUILD_ROOT/%{_unitdir}/docker.service
-install -p -m 644 contrib/init/systemd/docker.socket $RPM_BUILD_ROOT/%{_unitdir}/docker.socket
+install -p -m 644 contrib/init/systemd/docker.service.rpm $RPM_BUILD_ROOT/%{_unitdir}/docker.service
 %else
 install -p -m 644 contrib/init/sysvinit-redhat/docker.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/docker
 install -p -m 755 contrib/init/sysvinit-redhat/docker $RPM_BUILD_ROOT/%{_initddir}/docker
@@ -194,7 +193,6 @@ install -p -m 644 contrib/syntax/nano/Dockerfile.nanorc $RPM_BUILD_ROOT/usr/shar
 /%{_sysconfdir}/udev/rules.d/80-docker.rules
 %if 0%{?is_systemd}
 /%{_unitdir}/docker.service
-/%{_unitdir}/docker.socket
 %else
 %config(noreplace,missingok) /etc/sysconfig/docker
 /%{_initddir}/docker

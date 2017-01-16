@@ -5,5 +5,7 @@ import:
 - package: github.com/creack/ehttp
   version: ^0.4.3
 - package: github.com/fsouza/go-dockerclient
+- package: github.com/docker/docker
+  version: b54a1d83fa9ea3c1d2903138b7f9cd04f8557c20
 - package: github.com/go-fsnotify/fsnotify
   version: ^1.4.2

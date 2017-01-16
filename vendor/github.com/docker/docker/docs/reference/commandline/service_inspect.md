@@ -1,13 +1,17 @@
-<!--[metadata]>
-+++
-title = "service inspect"
-description = "The service inspect command description and usage"
-keywords = ["service, inspect"]
-advisory = "rc"
-[menu.main]
-parent = "smn_cli"
-+++
-<![end-metadata]-->
+---
+title: "service inspect"
+description: "The service inspect command description and usage"
+keywords: ["service, inspect"]
+---
+
+<!-- This file is maintained within the docker/docker Github
+     repository at https://github.com/docker/docker/. Make all
+     pull requests against that repo. If you see this file in
+     another repository, consider it read-only there, as it will
+     periodically be overwritten by the definitive file. Pull
+     requests which include edits to this file in other repositories
+     will be rejected.
+-->
 
 # service inspect
 
@@ -17,9 +21,9 @@ Usage:  docker service inspect [OPTIONS] SERVICE [SERVICE...]
 Display detailed information on one or more services
 
 Options:
-  -f, --format string   Format the output using the given go template
+  -f, --format string   Format the output using the given Go template
       --help            Print usage
-  -p, --pretty          Print the information in a human friendly format.
+      --pretty          Print the information in a human friendly format.
 ```
 
 
@@ -116,23 +120,23 @@ ID:		c8wgl7q4ndfd52ni6qftkvnnp
 Name:		frontend
 Labels:
  - org.example.projectname=demo-app
-Mode:		REPLICATED
+Service Mode:	REPLICATED
  Replicas:		5
 Placement:
- Strategy:	Spread
 UpdateConfig:
  Parallelism:	0
 ContainerSpec:
  Image:		nginx:alpine
 Resources:
-Reservations:
-Limits:
+Endpoint Mode:  vip
 Ports:
  Name =
  Protocol = tcp
  TargetPort = 443
  PublishedPort = 4443
 ```
+
+You can also use `--format pretty` for the same effect.
 
 
 ### Finding the number of tasks running as part of a service
@@ -141,10 +145,10 @@ The `--format` option can be used to obtain specific information about a
 service. For example, the following command outputs the number of replicas
 of the "redis" service.
 
-```bash
+```bash{% raw %}
 $ docker service inspect --format='{{.Spec.Mode.Replicated.Replicas}}' redis
 10
-```
+{% endraw %}```
 
 
 ## Related information
@@ -153,5 +157,5 @@ $ docker service inspect --format='{{.Spec.Mode.Replicated.Replicas}}' redis
 * [service ls](service_ls.md)
 * [service rm](service_rm.md)
 * [service scale](service_scale.md)
-* [service tasks](service_tasks.md)
+* [service ps](service_ps.md)
 * [service update](service_update.md)

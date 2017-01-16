@@ -1,12 +1,17 @@
-<!--[metadata]>
-+++
-title = "network ls"
-description = "The network ls command description and usage"
-keywords = ["network, list, user-defined"]
-[menu.main]
-parent = "smn_cli"
-+++
-<![end-metadata]-->
+---
+title: "network ls"
+description: "The network ls command description and usage"
+keywords: ["network, list, user-defined"]
+---
+
+<!-- This file is maintained within the docker/docker Github
+     repository at https://github.com/docker/docker/. Make all
+     pull requests against that repo. If you see this file in
+     another repository, consider it read-only there, as it will
+     periodically be overwritten by the definitive file. Pull
+     requests which include edits to this file in other repositories
+     will be rejected.
+-->
 
 # docker network ls
 
@@ -20,9 +25,10 @@ Aliases:
 
 Options:
   -f, --filter value   Provide filter values (i.e. 'dangling=true') (default [])
+      --format string  Pretty-print networks using a Go template
       --help           Print usage
       --no-trunc       Do not truncate the output
-  -q, --quiet          Only display volume names
+  -q, --quiet          Only display network IDs
 ```
 
 Lists all the networks the Engine `daemon` knows about. This includes the
@@ -169,6 +175,38 @@ $ docker network rm `docker network ls --filter type=custom -q`
 A warning will be issued when trying to remove a network that has containers
 attached.
 
+## Formatting
+
+The formatting options (`--format`) pretty-prints networks output
+using a Go template.
+
+Valid placeholders for the Go template are listed below:
+
+Placeholder | Description
+------------|------------------------------------------------------------------------------------------
+`.ID`       | Network ID
+`.Name`     | Network name
+`.Driver`   | Network driver
+`.Scope`    | Network scope (local, global)
+`.IPv6`     | Whether IPv6 is enabled on the network or not.
+`.Internal` | Whether the network is internal or not.
+`.Labels`   | All labels assigned to the network.
+`.Label`    | Value of a specific label for this network. For example `{{.Label "project.version"}}`
+
+When using the `--format` option, the `network ls` command will either
+output the data exactly as the template declares or, when using the
+`table` directive, includes column headers as well.
+
+The following example uses a template without headers and outputs the
+`ID` and `Driver` entries separated by a colon for all networks:
+
+```bash
+$ docker network ls --format "{{.ID}}: {{.Driver}}"
+afaaab448eb2: bridge
+d1584f8dc718: host
+391df270dc66: null
+```
+
 ## Related information
 
 * [network disconnect ](network_disconnect.md)
@@ -176,4 +214,4 @@ attached.
 * [network create](network_create.md)
 * [network inspect](network_inspect.md)
 * [network rm](network_rm.md)
-* [Understand Docker container networks](../../userguide/networking/dockernetworks.md)
+* [Understand Docker container networks](https://docs.docker.com/engine/userguide/networking/)

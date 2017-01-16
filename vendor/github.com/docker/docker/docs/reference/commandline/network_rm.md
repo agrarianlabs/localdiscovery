@@ -1,19 +1,24 @@
-<!--[metadata]>
-+++
-title = "network rm"
-description = "the network rm command description and usage"
-keywords = ["network, rm, user-defined"]
-[menu.main]
-parent = "smn_cli"
-+++
-<![end-metadata]-->
+---
+title: "network rm"
+description: "the network rm command description and usage"
+keywords: ["network, rm, user-defined"]
+---
+
+<!-- This file is maintained within the docker/docker Github
+     repository at https://github.com/docker/docker/. Make all
+     pull requests against that repo. If you see this file in
+     another repository, consider it read-only there, as it will
+     periodically be overwritten by the definitive file. Pull
+     requests which include edits to this file in other repositories
+     will be rejected.
+-->
 
 # network rm
 
 ```markdown
-Usage:  docker network rm NETWORK [NETWORK]...
+Usage:  docker network rm NETWORK [NETWORK...]
 
-Remove a network
+Remove one or more networks
 
 Aliases:
   rm, remove
@@ -50,4 +55,4 @@ deletion.
 * [network create](network_create.md)
 * [network ls](network_ls.md)
 * [network inspect](network_inspect.md)
-* [Understand Docker container networks](../../userguide/networking/dockernetworks.md)
+* [Understand Docker container networks](https://docs.docker.com/engine/userguide/networking/)

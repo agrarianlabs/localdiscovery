@@ -5,8 +5,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
@@ -37,10 +39,7 @@ func loadFactory(context *cli.Context) (libcontainer.Factory, error) {
 			return nil, fmt.Errorf("systemd cgroup flag passed, but systemd support for managing cgroups is not available")
 		}
 	}
-	return libcontainer.New(abs, cgroupManager, func(l *libcontainer.LinuxFactory) error {
-		l.CriuPath = context.GlobalString("criu")
-		return nil
-	})
+	return libcontainer.New(abs, cgroupManager, libcontainer.CriuPath(context.GlobalString("criu")))
 }
 
 // getContainer returns the specified container instance by loading it from state
@@ -83,6 +82,9 @@ func newProcess(p specs.Process) (*libcontainer.Process, error) {
 		NoNewPrivileges: &p.NoNewPrivileges,
 		AppArmorProfile: p.ApparmorProfile,
 	}
+	for _, gid := range p.User.AdditionalGids {
+		lp.AdditionalGroups = append(lp.AdditionalGroups, strconv.FormatUint(uint64(gid), 10))
+	}
 	for _, rlimit := range p.Rlimits {
 		rl, err := createLibContainerRlimit(rlimit)
 		if err != nil {
@@ -91,22 +93,6 @@ func newProcess(p specs.Process) (*libcontainer.Process, error) {
 		lp.Rlimits = append(lp.Rlimits, rl)
 	}
 	return lp, nil
-}
-
-func dupStdio(process *libcontainer.Process, rootuid, rootgid int) error {
-	process.Stdin = os.Stdin
-	process.Stdout = os.Stdout
-	process.Stderr = os.Stderr
-	for _, fd := range []uintptr{
-		os.Stdin.Fd(),
-		os.Stdout.Fd(),
-		os.Stderr.Fd(),
-	} {
-		if err := syscall.Fchown(int(fd), rootuid, rootgid); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // If systemd is supporting sd_notify protocol, this function will add support
@@ -122,23 +108,27 @@ func destroy(container libcontainer.Container) {
 	}
 }
 
-// setupIO sets the proper IO on the process depending on the configuration
-// If there is a nil error then there must be a non nil tty returned
-func setupIO(process *libcontainer.Process, rootuid, rootgid int, console string, createTTY, detach bool) (*tty, error) {
-	// detach and createTty will not work unless a console path is passed
-	// so error out here before changing any terminal settings
-	if createTTY && detach && console == "" {
-		return nil, fmt.Errorf("cannot allocate tty if runc will detach")
-	}
+// setupIO modifies the given process config according to the options.
+func setupIO(process *libcontainer.Process, rootuid, rootgid int, createTTY, detach bool) (*tty, error) {
+	// This is entirely handled by recvtty.
 	if createTTY {
-		return createTty(process, rootuid, rootgid, console)
+		process.Stdin = nil
+		process.Stdout = nil
+		process.Stderr = nil
+		return &tty{}, nil
 	}
+
+	// When we detach, we just dup over stdio and call it a day. There's no
+	// requirement that we set up anything nice for our caller or the
+	// container.
 	if detach {
 		if err := dupStdio(process, rootuid, rootgid); err != nil {
 			return nil, err
 		}
 		return &tty{}, nil
 	}
+
+	// XXX: This doesn't sit right with me. It's ugly.
 	return createStdioPipes(process, rootuid, rootgid)
 }
 
@@ -178,13 +168,6 @@ func createContainer(context *cli.Context, id string, spec *specs.Spec) (libcont
 		return nil, err
 	}
 
-	if _, err := os.Stat(config.Rootfs); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("rootfs (%q) does not exist", config.Rootfs)
-		}
-		return nil, err
-	}
-
 	factory, err := loadFactory(context)
 	if err != nil {
 		return nil, err
@@ -198,9 +181,13 @@ type runner struct {
 	detach          bool
 	listenFDs       []*os.File
 	pidFile         string
-	console         string
+	consoleSocket   string
 	container       libcontainer.Container
 	create          bool
+}
+
+func (r *runner) terminalinfo() *libcontainer.TerminalInfo {
+	return libcontainer.NewTerminalInfo(r.container.ID())
 }
 
 func (r *runner) run(config *specs.Process) (int, error) {
@@ -213,55 +200,110 @@ func (r *runner) run(config *specs.Process) (int, error) {
 		process.Env = append(process.Env, fmt.Sprintf("LISTEN_FDS=%d", len(r.listenFDs)), "LISTEN_PID=1")
 		process.ExtraFiles = append(process.ExtraFiles, r.listenFDs...)
 	}
+
 	rootuid, err := r.container.Config().HostUID()
 	if err != nil {
 		r.destroy()
 		return -1, err
 	}
+
 	rootgid, err := r.container.Config().HostGID()
 	if err != nil {
 		r.destroy()
 		return -1, err
 	}
-	tty, err := setupIO(process, rootuid, rootgid, r.console, config.Terminal, r.detach || r.create)
-	if err != nil {
+
+	detach := r.detach || r.create
+
+	// Check command-line for sanity.
+	if detach && config.Terminal && r.consoleSocket == "" {
 		r.destroy()
-		return -1, err
+		return -1, fmt.Errorf("cannot allocate tty if runc will detach without setting console socket")
 	}
-	handler := newSignalHandler(tty, r.enableSubreaper)
+	// XXX: Should we change this?
+	if (!detach || !config.Terminal) && r.consoleSocket != "" {
+		r.destroy()
+		return -1, fmt.Errorf("cannot use console socket if runc will not detach or allocate tty")
+	}
+
 	startFn := r.container.Start
 	if !r.create {
 		startFn = r.container.Run
 	}
-	if err := startFn(process); err != nil {
+	// Setting up IO is a two stage process. We need to modify process to deal
+	// with detaching containers, and then we get a tty after the container has
+	// started.
+	handler := newSignalHandler(r.enableSubreaper)
+	tty, err := setupIO(process, rootuid, rootgid, config.Terminal, detach)
+	if err != nil {
 		r.destroy()
-		tty.Close()
 		return -1, err
 	}
-	if err := tty.ClosePostStart(); err != nil {
-		r.terminate(process)
+	if err = startFn(process); err != nil {
 		r.destroy()
-		tty.Close()
 		return -1, err
 	}
-	if r.pidFile != "" {
-		if err := createPidFile(r.pidFile, process); err != nil {
+	if config.Terminal {
+		if err = tty.recvtty(process, r.detach || r.create); err != nil {
 			r.terminate(process)
 			r.destroy()
-			tty.Close()
 			return -1, err
 		}
 	}
-	if r.detach || r.create {
-		tty.Close()
+	defer tty.Close()
+
+	if config.Terminal && detach {
+		conn, err := net.Dial("unix", r.consoleSocket)
+		if err != nil {
+			r.terminate(process)
+			r.destroy()
+			return -1, err
+		}
+		defer conn.Close()
+
+		unixconn, ok := conn.(*net.UnixConn)
+		if !ok {
+			r.terminate(process)
+			r.destroy()
+			return -1, fmt.Errorf("casting to UnixConn failed")
+		}
+
+		socket, err := unixconn.File()
+		if err != nil {
+			r.terminate(process)
+			r.destroy()
+			return -1, err
+		}
+		defer socket.Close()
+
+		err = tty.sendtty(socket, r.terminalinfo())
+		if err != nil {
+			r.terminate(process)
+			r.destroy()
+			return -1, err
+		}
+	}
+
+	if err = tty.ClosePostStart(); err != nil {
+		r.terminate(process)
+		r.destroy()
+		return -1, err
+	}
+	if r.pidFile != "" {
+		if err = createPidFile(r.pidFile, process); err != nil {
+			r.terminate(process)
+			r.destroy()
+			return -1, err
+		}
+	}
+	if detach {
 		return 0, nil
 	}
-	status, err := handler.forward(process)
+	status, err := handler.forward(process, tty)
 	if err != nil {
 		r.terminate(process)
 	}
 	r.destroy()
-	tty.Close()
 	return status, err
 }
 
@@ -272,8 +314,8 @@ func (r *runner) destroy() {
 }
 
 func (r *runner) terminate(p *libcontainer.Process) {
-	p.Signal(syscall.SIGKILL)
-	p.Wait()
+	_ = p.Signal(syscall.SIGKILL)
+	_, _ = p.Wait()
 }
 
 func validateProcessSpec(spec *specs.Process) error {
@@ -298,7 +340,6 @@ func startContainer(context *cli.Context, spec *specs.Spec, create bool) (int, e
 	if err != nil {
 		return -1, err
 	}
-	detach := context.Bool("detach")
 	// Support on-demand socket activation by passing file descriptors into the container init process.
 	listenFDs := []*os.File{}
 	if os.Getenv("LISTEN_FDS") != "" {
@@ -309,8 +350,8 @@ func startContainer(context *cli.Context, spec *specs.Spec, create bool) (int, e
 		shouldDestroy:   true,
 		container:       container,
 		listenFDs:       listenFDs,
-		console:         context.String("console"),
-		detach:          detach,
+		consoleSocket:   context.String("console-socket"),
+		detach:          context.Bool("detach"),
 		pidFile:         context.String("pid-file"),
 		create:          create,
 	}

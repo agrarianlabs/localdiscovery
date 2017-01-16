@@ -108,6 +108,9 @@ information is displayed once every 5 seconds.`,
 		cli.BoolFlag{Name: "stats", Usage: "display the container's stats then exit"},
 	},
 	Action: func(context *cli.Context) error {
+		if err := checkArgs(context, 1, exactArgs); err != nil {
+			return err
+		}
 		container, err := getContainer(context)
 		if err != nil {
 			return err
@@ -121,7 +124,6 @@ information is displayed once every 5 seconds.`,
 			return err
 		}
 		if status == libcontainer.Stopped {
-			fatalf("container with id %s is not running", container.ID())
 			return fmt.Errorf("container with id %s is not running", container.ID())
 		}
 		var (

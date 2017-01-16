@@ -8,9 +8,9 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/server/httputils"
-	basictypes "github.com/docker/engine-api/types"
-	"github.com/docker/engine-api/types/filters"
-	types "github.com/docker/engine-api/types/swarm"
+	basictypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
+	types "github.com/docker/docker/api/types/swarm"
 	"golang.org/x/net/context"
 )
 
@@ -66,7 +66,27 @@ func (sr *swarmRouter) updateCluster(ctx context.Context, w http.ResponseWriter,
 		return fmt.Errorf("Invalid swarm version '%s': %s", rawVersion, err.Error())
 	}
 
-	if err := sr.backend.Update(version, swarm); err != nil {
+	var flags types.UpdateFlags
+
+	if value := r.URL.Query().Get("rotateWorkerToken"); value != "" {
+		rot, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid value for rotateWorkerToken: %s", value)
+		}
+
+		flags.RotateWorkerToken = rot
+	}
+
+	if value := r.URL.Query().Get("rotateManagerToken"); value != "" {
+		rot, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid value for rotateManagerToken: %s", value)
+		}
+
+		flags.RotateManagerToken = rot
+	}
+
+	if err := sr.backend.Update(version, swarm, flags); err != nil {
 		logrus.Errorf("Error configuring swarm: %v", err)
 		return err
 	}
@@ -112,7 +132,7 @@ func (sr *swarmRouter) createService(ctx context.Context, w http.ResponseWriter,
 
 	id, err := sr.backend.CreateService(service, encodedAuth)
 	if err != nil {
-		logrus.Errorf("Error creating service %s: %v", id, err)
+		logrus.Errorf("Error creating service %s: %v", service.Name, err)
 		return err
 	}
 
@@ -136,7 +156,9 @@ func (sr *swarmRouter) updateService(ctx context.Context, w http.ResponseWriter,
 	// Get returns "" if the header does not exist
 	encodedAuth := r.Header.Get("X-Registry-Auth")
 
-	if err := sr.backend.UpdateService(vars["id"], version, service, encodedAuth); err != nil {
+	registryAuthFrom := r.URL.Query().Get("registryAuthFrom")
+
+	if err := sr.backend.UpdateService(vars["id"], version, service, encodedAuth, registryAuthFrom); err != nil {
 		logrus.Errorf("Error updating service %s: %v", vars["id"], err)
 		return err
 	}
@@ -199,7 +221,13 @@ func (sr *swarmRouter) updateNode(ctx context.Context, w http.ResponseWriter, r 
 }
 
 func (sr *swarmRouter) removeNode(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
-	if err := sr.backend.RemoveNode(vars["id"]); err != nil {
+	if err := httputils.ParseForm(r); err != nil {
+		return err
+	}
+
+	force := httputils.BoolValue(r, "force")
+
+	if err := sr.backend.RemoveNode(vars["id"], force); err != nil {
 		logrus.Errorf("Error removing node %s: %v", vars["id"], err)
 		return err
 	}

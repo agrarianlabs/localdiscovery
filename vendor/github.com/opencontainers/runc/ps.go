@@ -25,6 +25,9 @@ var psCommand = cli.Command{
 		},
 	},
 	Action: func(context *cli.Context) error {
+		if err := checkArgs(context, 1, minArgs); err != nil {
+			return err
+		}
 		container, err := getContainer(context)
 		if err != nil {
 			return err
@@ -36,20 +39,22 @@ var psCommand = cli.Command{
 		}
 
 		if context.String("format") == "json" {
-			if err := json.NewEncoder(os.Stdout).Encode(pids); err != nil {
-				return err
-			}
-			return nil
+			return json.NewEncoder(os.Stdout).Encode(pids)
 		}
 
-		psArgs := context.Args().Get(1)
-		if psArgs == "" {
-			psArgs = "-ef"
+		// [1:] is to remove command name, ex:
+		// context.Args(): [containet_id ps_arg1 ps_arg2 ...]
+		// psArgs:         [ps_arg1 ps_arg2 ...]
+		//
+		psArgs := context.Args()[1:]
+		if len(psArgs) == 0 {
+			psArgs = []string{"-ef"}
 		}
 
-		output, err := exec.Command("ps", strings.Split(psArgs, " ")...).Output()
+		cmd := exec.Command("ps", psArgs...)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: %s", err, output)
 		}
 
 		lines := strings.Split(string(output), "\n")
@@ -78,6 +83,7 @@ var psCommand = cli.Command{
 		}
 		return nil
 	},
+	SkipArgReorder: true,
 }
 
 func getPidIndex(title string) (int, error) {

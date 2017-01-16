@@ -6,10 +6,13 @@ import (
 	"io"
 	"runtime"
 	"strconv"
+	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/daemon/exec"
 	"github.com/docker/docker/libcontainerd"
+	"github.com/docker/docker/restartmanager"
 	"github.com/docker/docker/runconfig"
 )
 
@@ -29,36 +32,58 @@ func (daemon *Daemon) StateChanged(id string, e libcontainerd.StateInfo) error {
 		daemon.updateHealthMonitor(c)
 		daemon.LogContainerEvent(c, "oom")
 	case libcontainerd.StateExit:
+		// if container's AutoRemove flag is set, remove it after clean up
+		autoRemove := func() {
+			if c.HostConfig.AutoRemove {
+				if err := daemon.ContainerRm(c.ID, &types.ContainerRmConfig{ForceRemove: true, RemoveVolume: true}); err != nil {
+					logrus.Errorf("can't remove container %s: %v", c.ID, err)
+				}
+			}
+		}
+
 		c.Lock()
-		defer c.Unlock()
 		c.Wait()
 		c.Reset(false)
-		c.SetStopped(platformConstructExitStatus(e))
+
+		restart, wait, err := c.RestartManager().ShouldRestart(e.ExitCode, false, time.Since(c.StartedAt))
+		if err == nil && restart {
+			c.RestartCount++
+			c.SetRestarting(platformConstructExitStatus(e))
+		} else {
+			c.SetStopped(platformConstructExitStatus(e))
+			defer autoRemove()
+		}
+
+		daemon.updateHealthMonitor(c)
 		attributes := map[string]string{
 			"exitCode": strconv.Itoa(int(e.ExitCode)),
 		}
-		daemon.updateHealthMonitor(c)
 		daemon.LogContainerEventWithAttributes(c, "die", attributes)
 		daemon.Cleanup(c)
-		// FIXME: here is race condition between two RUN instructions in Dockerfile
-		// because they share same runconfig and change image. Must be fixed
-		// in builder/builder.go
+
+		if err == nil && restart {
+			go func() {
+				err := <-wait
+				if err == nil {
+					if err = daemon.containerStart(c, "", false); err != nil {
+						logrus.Debugf("failed to restart contianer: %+v", err)
+					}
+				}
+				if err != nil {
+					c.SetStopped(platformConstructExitStatus(e))
+					defer autoRemove()
+					if err != restartmanager.ErrRestartCanceled {
+						logrus.Errorf("restartmanger wait error: %+v", err)
+					}
+				}
+			}()
+		}
+
+		defer c.Unlock()
 		if err := c.ToDisk(); err != nil {
 			return err
 		}
 		return daemon.postRunProcessing(c, e)
-	case libcontainerd.StateRestart:
-		c.Lock()
-		defer c.Unlock()
-		c.Reset(false)
-		c.RestartCount++
-		c.SetRestarting(platformConstructExitStatus(e))
-		attributes := map[string]string{
-			"exitCode": strconv.Itoa(int(e.ExitCode)),
-		}
-		daemon.LogContainerEventWithAttributes(c, "die", attributes)
-		daemon.updateHealthMonitor(c)
-		return c.ToDisk()
 	case libcontainerd.StateExitProcess:
 		c.Lock()
 		defer c.Unlock()
@@ -81,6 +106,7 @@ func (daemon *Daemon) StateChanged(id string, e libcontainerd.StateInfo) error {
 		// Container is already locked in this case
 		c.SetRunning(int(e.Pid), e.State == libcontainerd.StateStart)
 		c.HasBeenManuallyStopped = false
+		c.HasBeenStartedBefore = true
 		if err := c.ToDisk(); err != nil {
 			c.Reset(false)
 			return err
@@ -90,11 +116,17 @@ func (daemon *Daemon) StateChanged(id string, e libcontainerd.StateInfo) error {
 	case libcontainerd.StatePause:
 		// Container is already locked in this case
 		c.Paused = true
+		if err := c.ToDisk(); err != nil {
+			return err
+		}
 		daemon.updateHealthMonitor(c)
 		daemon.LogContainerEvent(c, "pause")
 	case libcontainerd.StateResume:
 		// Container is already locked in this case
 		c.Paused = false
+		if err := c.ToDisk(); err != nil {
+			return err
+		}
 		daemon.updateHealthMonitor(c)
 		daemon.LogContainerEvent(c, "unpause")
 	}
@@ -125,25 +157,6 @@ func (daemon *Daemon) AttachStreams(id string, iop libcontainerd.IOPipe) error {
 		}
 	}
 
-	if stdin := s.Stdin(); stdin != nil {
-		if iop.Stdin != nil {
-			go func() {
-				io.Copy(iop.Stdin, stdin)
-				iop.Stdin.Close()
-			}()
-		}
-	} else {
-		//TODO(swernli): On Windows, not closing stdin when no tty is requested by the exec Config
-		// results in a hang. We should re-evaluate generalizing this fix for all OSes if
-		// we can determine that is the right thing to do more generally.
-		if (c != nil && !c.Config.Tty) || (ec != nil && !ec.Tty && runtime.GOOS == "windows") {
-			// tty is enabled, so dont close containerd's iopipe stdin.
-			if iop.Stdin != nil {
-				iop.Stdin.Close()
-			}
-		}
-	}
-
 	copyFunc := func(w io.Writer, r io.Reader) {
 		s.Add(1)
 		go func() {
@@ -159,6 +172,29 @@ func (daemon *Daemon) AttachStreams(id string, iop libcontainerd.IOPipe) error {
 	}
 	if iop.Stderr != nil {
 		copyFunc(s.Stderr(), iop.Stderr)
+	}
+
+	if stdin := s.Stdin(); stdin != nil {
+		if iop.Stdin != nil {
+			go func() {
+				io.Copy(iop.Stdin, stdin)
+				if err := iop.Stdin.Close(); err != nil {
+					logrus.Error(err)
+				}
+			}()
+		}
+	} else {
+		//TODO(swernli): On Windows, not closing stdin when no tty is requested by the exec Config
+		// results in a hang. We should re-evaluate generalizing this fix for all OSes if
+		// we can determine that is the right thing to do more generally.
+		if (c != nil && !c.Config.Tty) || (ec != nil && !ec.Tty && runtime.GOOS == "windows") {
+			// tty is enabled, so dont close containerd's iopipe stdin.
+			if iop.Stdin != nil {
+				if err := iop.Stdin.Close(); err != nil {
+					logrus.Error(err)
+				}
+			}
+		}
 	}
 
 	return nil

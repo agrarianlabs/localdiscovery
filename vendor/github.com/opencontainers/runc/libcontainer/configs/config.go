@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
 type Rlimit struct {
@@ -85,11 +86,6 @@ type Config struct {
 	// that the parent process dies.
 	ParentDeathSignal int `json:"parent_death_signal"`
 
-	// PivotDir allows a custom directory inside the container's root filesystem to be used as pivot, when NoPivotRoot is not set.
-	// When a custom PivotDir not set, a temporary dir inside the root filesystem will be used. The pivot dir needs to be writeable.
-	// This is required when using read only root filesystems. In these cases, a read/writeable path can be (bind) mounted somewhere inside the root filesystem to act as pivot.
-	PivotDir string `json:"pivot_dir"`
-
 	// Path to a directory containing the container's root filesystem.
 	Rootfs string `json:"rootfs"`
 
@@ -147,10 +143,6 @@ type Config struct {
 	// higher scores are preferred for being killed.
 	// More information about kernel oom score calculation here: https://lwn.net/Articles/317814/
 	OomScoreAdj int `json:"oom_score_adj"`
-
-	// AdditionalGroups specifies the gids that should be added to supplementary groups
-	// in addition to those that the user belongs to.
-	AdditionalGroups []string `json:"additional_groups"`
 
 	// UidMappings is an array of User ID mappings for User Namespaces
 	UidMappings []IDMap `json:"uid_mappings"`
@@ -252,13 +244,7 @@ func (hooks Hooks) MarshalJSON() ([]byte, error) {
 }
 
 // HookState is the payload provided to a hook on execution.
-type HookState struct {
-	Version    string `json:"ociVersion"`
-	ID         string `json:"id"`
-	Pid        int    `json:"pid"`
-	Root       string `json:"root"`
-	BundlePath string `json:"bundlePath"`
-}
+type HookState specs.State
 
 type Hook interface {
 	// Run executes the hook with the provided state.
@@ -304,29 +290,38 @@ func (c Command) Run(s HookState) error {
 	if err != nil {
 		return err
 	}
+	var stdout, stderr bytes.Buffer
 	cmd := exec.Cmd{
-		Path:  c.Path,
-		Args:  c.Args,
-		Env:   c.Env,
-		Stdin: bytes.NewReader(b),
+		Path:   c.Path,
+		Args:   c.Args,
+		Env:    c.Env,
+		Stdin:  bytes.NewReader(b),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}
+	if err := cmd.Start(); err != nil {
+		return err
 	}
 	errC := make(chan error, 1)
 	go func() {
-		out, err := cmd.CombinedOutput()
+		err := cmd.Wait()
 		if err != nil {
-			err = fmt.Errorf("%s: %s", err, out)
+			err = fmt.Errorf("error running hook: %v, stdout: %s, stderr: %s", err, stdout.String(), stderr.String())
 		}
 		errC <- err
 	}()
+	var timerCh <-chan time.Time
 	if c.Timeout != nil {
-		select {
-		case err := <-errC:
-			return err
-		case <-time.After(*c.Timeout):
-			cmd.Process.Kill()
-			cmd.Wait()
-			return fmt.Errorf("hook ran past specified timeout of %.1fs", c.Timeout.Seconds())
-		}
+		timer := time.NewTimer(*c.Timeout)
+		defer timer.Stop()
+		timerCh = timer.C
 	}
-	return <-errC
+	select {
+	case err := <-errC:
+		return err
+	case <-timerCh:
+		cmd.Process.Kill()
+		cmd.Wait()
+		return fmt.Errorf("hook ran past specified timeout of %.1fs", c.Timeout.Seconds())
+	}
 }

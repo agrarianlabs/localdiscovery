@@ -287,7 +287,7 @@ func (s *DockerExternalGraphdriverSuite) setUpPlugin(c *check.C, name string, ex
 
 	mux.HandleFunc("/GraphDriver.ApplyDiff", func(w http.ResponseWriter, r *http.Request) {
 		s.ec[ext].applydiff++
-		var diff archive.Reader = r.Body
+		var diff io.Reader = r.Body
 		defer r.Body.Close()
 
 		id := r.URL.Query().Get("id")
@@ -353,7 +353,7 @@ func (s *DockerExternalGraphdriverSuite) testExternalGraphDriver(name string, ex
 
 	err = s.d.Restart("-s", name)
 
-	out, err = s.d.Cmd("inspect", "--format='{{.GraphDriver.Name}}'", "graphtest")
+	out, err = s.d.Cmd("inspect", "--format={{.GraphDriver.Name}}", "graphtest")
 	c.Assert(err, check.IsNil, check.Commentf(out))
 	c.Assert(strings.TrimSpace(out), check.Equals, name)
 

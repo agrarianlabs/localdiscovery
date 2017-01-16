@@ -23,7 +23,8 @@ func (overlayWhiteoutConverter) ConvertWrite(hdr *tar.Header, path string, fi os
 	// convert whiteouts to AUFS format
 	if fi.Mode()&os.ModeCharDevice != 0 && hdr.Devmajor == 0 && hdr.Devminor == 0 {
 		// we just rename the file and make it normal
-		hdr.Name = WhiteoutPrefix + hdr.Name
+		dir, filename := filepath.Split(hdr.Name)
+		hdr.Name = filepath.Join(dir, WhiteoutPrefix+filename)
 		hdr.Mode = 0600
 		hdr.Typeflag = tar.TypeReg
 		hdr.Size = 0
@@ -35,7 +36,7 @@ func (overlayWhiteoutConverter) ConvertWrite(hdr *tar.Header, path string, fi os
 		if err != nil {
 			return err
 		}
-		if opaque != nil && len(opaque) == 1 && opaque[0] == 'y' {
+		if len(opaque) == 1 && opaque[0] == 'y' {
 			// create a header for the whiteout file
 			// it should inherit some properties from the parent, but be a regular file
 			*hdr = tar.Header{

@@ -2,6 +2,8 @@
 
 package graphdriver
 
-func lookupPlugin(name, home string, opts []string) (Driver, error) {
+import "github.com/docker/docker/pkg/plugingetter"
+
+func lookupPlugin(name, home string, opts []string, pg plugingetter.PluginGetter) (Driver, error) {
 	return nil, ErrNotSupported
 }
